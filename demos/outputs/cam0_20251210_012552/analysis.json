@@ -1,0 +1,17 @@
+{
+  "frame_id": 1,
+  "timestamp": 1765329952.4452581,
+  "camera_id": 0,
+  "strategic": {
+    "target_yaw_delta": -0.3,
+    "confidence": 0.5,
+    "min_distance_ahead": "4025.3567",
+    "grid_info": "3x3_simple"
+  },
+  "reactive": {
+    "yaw_delta": -0.44999999999999996,
+    "forward_scale": 1.0,
+    "emergency_brake": "False",
+    "grid_info": "3x3_simple"
+  }
+}

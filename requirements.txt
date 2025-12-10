@@ -1,0 +1,26 @@
+# TOFcam - Análise de Profundidade em Tempo Real
+# Dependências principais do projeto
+
+# Computer Vision e Processamento de Imagem
+opencv-python>=4.10.0
+numpy>=2.3.5
+
+# Deep Learning e MiDaS
+torch>=2.9.1
+torchvision>=0.24.1
+timm>=1.0.22
+
+# Utilitários e Desenvolvimento
+matplotlib>=3.7.0
+pillow>=12.0.0
+pytest>=7.0.0
+
+# Dependências automáticas (instaladas pelo PyTorch)
+# - networkx, sympy, fsspec, filelock
+# - huggingface_hub, pyyaml, safetensors
+# - enum
+
+# Development dependencies (uncomment if needed)
+# jupyter
+# matplotlib
+# scipy

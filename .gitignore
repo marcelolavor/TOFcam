@@ -48,6 +48,18 @@ coverage.xml
 *.cover
 *.py.cover
 .hypothesis/
+
+# TOFcam específicos
+output_images/
+*.jpg
+*.jpeg
+*.png
+*.avi
+*.mp4
+
+# Modelos baixados
+models/
+weights/
 .pytest_cache/
 cover/
 
