@@ -9,7 +9,7 @@ import os
 # Adicionar o diretório raiz do projeto ao path
 sys.path.append(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))
 
-from analyzer_lib import TOFAnalyzer, AnalysisConfig
+from tofcam.core import TOFAnalyzer, AnalysisConfig
 import cv2
 import time
 

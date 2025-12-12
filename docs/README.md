@@ -1,121 +1,162 @@
-# TOFcam Documentation
+# 📖 TOFcam Documentation
 
-Documentação completa do sistema TOFcam - Análise de profundidade e navegação em tempo real.
+**Documentação completa do sistema TOFcam - Análise de profundidade e navegação em tempo real.**
 
-## 📚 Índice da Documentação
+## 🚀 Navegação Rápida
 
-### 🚀 Para Usuários
+### Por Tipo de Usuário
 
-| Documento | Descrição | Público-Alvo |
-|-----------|-----------|--------------|
-| **[Como Usar](HOW_TO_USE.md)** | Menu rápido de comandos por categoria | Todos os usuários |
-| **[Guia de Uso](USAGE_GUIDE.md)** | Manual completo com exemplos e troubleshooting | Usuários avançados |
-| **[Guia de Display](DISPLAY_GUIDE.md)** | Configuração de ambiente gráfico | Usuários com problemas de visualização |
+| Usuário | Primeiro Passo | Documentos Relevantes |
+|---------|----------------|----------------------|
+| **🆕 Iniciante** | [Quick Start](quick-start.md) → [Installation](installation.md) | [User Guide](user-guide.md) |
+| **💻 Desenvolvedor** | [API Reference](api-reference.md) → [Architecture](architecture.md) | [Contributing](#) |
+| **🔬 Pesquisador** | [User Guide](user-guide.md) → [Advanced Features](#) | [Analysis Tools](#) |
+| **⚙️ Admin/Deploy** | [Installation](installation.md) → [Display Setup](display-setup.md) | [Troubleshooting](#) |
 
-### 🔧 Para Desenvolvedores
+### Por Necessidade
 
-| Documento | Descrição | Público-Alvo |
-|-----------|-----------|--------------|
-| **[Estrutura do Projeto](PROJECT_STRUCTURE.md)** | Arquitetura e organização do código | Desenvolvedores e contribuidores |
-| **[README Principal](../README.md)** | Visão geral e início rápido | Desenvolvedores iniciantes |
-
----
-
-## 🎯 Navegação Rápida
-
-### 👤 **Sou novo no projeto**
-1. Leia o [README Principal](../README.md) 
-2. Execute `python demos/run_demos.py`
-3. Consulte [Como Usar](HOW_TO_USE.md) para comandos específicos
-
-### 💻 **Quero usar o sistema**
-1. Vá direto para [Guia de Uso](USAGE_GUIDE.md)
-2. Escolha seu modo preferido (Web, Análise, Demos)
-3. Se tiver problemas de display, veja [Guia de Display](DISPLAY_GUIDE.md)
-
-### 🔨 **Quero desenvolver/contribuir**
-1. Estude [Estrutura do Projeto](PROJECT_STRUCTURE.md)
-2. Execute os testes: `python tests/run_tests.py`
-3. Explore os demos: `python demos/run_demos.py`
+| Preciso... | Documento | Tempo |
+|------------|-----------|-------|
+| **Executar rapidamente** | [Quick Start](quick-start.md) | 2 min |
+| **Instalar/configurar** | [Installation](installation.md) | 10-15 min |
+| **Entender funcionamento** | [User Guide](user-guide.md) | 20-30 min |
+| **Desenvolver/integrar** | [API Reference](api-reference.md) | 45+ min |
+| **Resolver problemas** | [Display Setup](display-setup.md) | 10-20 min |
+| **Contribuir com código** | [Architecture](architecture.md) | 60+ min |
 
 ---
 
-## 📖 Resumo dos Documentos
+## 📚 Documentação Disponível
 
-### 🚀 [HOW_TO_USE.md](HOW_TO_USE.md)
-**Menu de navegação rápida** - Comandos diretos organizados por categoria de usuário (Iniciantes, Desenvolvedores, Pesquisadores).
+### 🚀 **Para Usar o Sistema**
 
-**Quando usar:** Quando você sabe o que quer fazer e precisa apenas do comando correto.
+#### [📋 Quick Start](quick-start.md)
+**Comandos essenciais para usar imediatamente**
+- Menu rápido por categoria (Iniciante, Desenvolvedor, Pesquisador)
+- Comandos diretos sem explicação
+- Links para documentação detalhada
 
-### 📚 [USAGE_GUIDE.md](USAGE_GUIDE.md)
-**Manual completo** - Instruções detalhadas, configurações avançadas, interpretação de resultados, solução de problemas e casos de uso práticos.
+#### [⚙️ Installation Guide](installation.md)
+**Setup completo do ambiente de desenvolvimento**
+- Instalação de dependências
+- Configuração do conda environment
+- Verificação da instalação
+- Troubleshooting comum
 
-**Quando usar:** Para aprender a usar o sistema completamente ou resolver problemas específicos.
+#### [📚 User Guide](user-guide.md)
+**Manual completo com exemplos práticos**
+- Todos os modos de execução explicados
+- Exemplos de código e saída esperada
+- Configurações avançadas
+- Análise e interpretação de resultados
 
-### 🖥️ [DISPLAY_GUIDE.md](DISPLAY_GUIDE.md)
-**Configuração de ambiente gráfico** - Solução de problemas relacionados ao sistema de janelas e visualização OpenCV.
-
-**Quando usar:** Quando há problemas para exibir as janelas do OpenCV ou interface gráfica.
-
-### 🏗️ [PROJECT_STRUCTURE.md](PROJECT_STRUCTURE.md)
-**Arquitetura do sistema** - Explicação da organização do código, módulos, dependências e fluxo de execução.
-
-**Quando usar:** Para entender como o código está organizado ou contribuir com o projeto.
-
----
-
-## 🎯 Fluxo de Aprendizado Recomendado
-
-```mermaid
-graph TD
-    A[Chegada ao Projeto] --> B[README.md]
-    B --> C{Objetivo?}
-    C -->|Usar o Sistema| D[USAGE_GUIDE.md]
-    C -->|Desenvolver| E[PROJECT_STRUCTURE.md]
-    C -->|Comando Rápido| F[HOW_TO_USE.md]
-    D --> G[Executar Demos]
-    E --> G
-    F --> G
-    G --> H{Problemas de Display?}
-    H -->|Sim| I[DISPLAY_GUIDE.md]
-    H -->|Não| J[Sistema Funcionando!]
-    I --> J
-```
+#### [🖥️ Display Setup](display-setup.md)
+**Configuração de ambiente gráfico**
+- Solução para WSL, SSH, e ambientes remotos
+- Configuração X11/Wayland
+- Alternativas (web viewer, salvamento de imagens)
+- Troubleshooting de display
 
 ---
 
-## 📝 Convenções da Documentação
+### 🔧 **Para Desenvolvedores**
 
-### Símbolos Utilizados
-- 🚀 **Início rápido/Primeiros passos**
-- 📚 **Documentação detalhada**
-- 🔧 **Configuração/Setup técnico**
-- 💡 **Dicas e sugestões**
-- ⚠️ **Avisos importantes**
-- ❌ **Problemas/Erros comuns**
-- ✅ **Soluções/Status OK**
+#### [🏗️ Architecture](architecture.md)
+**Design e estrutura do sistema**
+- Visão geral da arquitetura
+- Módulos e responsabilidades
+- Fluxo de dados e processamento
+- Decisões de design e rationale
+- Como contribuir
 
-### Estrutura dos Comandos
-```bash
-# Comentário explicativo
-comando_exemplo
-```
+#### [📖 API Reference](api-reference.md)
+**Referência completa da biblioteca tofcam.lib**
+- Todas as classes e funções documentadas
+- Exemplos de uso para cada módulo
+- Configurações disponíveis
+- Tipos de dados e enums
+- Patterns de uso recomendados
 
-### Estrutura dos Códigos
-```python
-# Comentário em português
-codigo_exemplo()
-```
-
----
-
-## 🤝 Como Contribuir com a Documentação
-
-1. **Melhorias:** Edite os arquivos `.md` diretamente
-2. **Novos guias:** Adicione na pasta `docs/` e atualize este índice
-3. **Problemas:** Documente soluções em `USAGE_GUIDE.md`
-4. **Exemplos:** Adicione em `demos/` com documentação correspondente
+#### [🧪 Testing Guide](testing-guide.md)
+**Testes e validação do sistema**
+- Como executar a suite de testes
+- Criação de novos testes
+- Benchmarks e performance
+- Validação de algoritmos
 
 ---
 
-💡 **Dica:** Sempre comece pelo [README principal](../README.md) para ter uma visão geral do projeto!
+## 🎯 Fluxos de Uso Recomendados
+
+### 🆕 **Primeira vez usando TOFcam**
+1. **[Installation](installation.md)** → Setup do ambiente
+2. **[Quick Start](quick-start.md)** → Comandos básicos
+3. **[User Guide](user-guide.md)** → Entendimento completo
+
+### 💻 **Desenvolvimento/Integração**
+1. **[Architecture](architecture.md)** → Entender o sistema
+2. **[API Reference](api-reference.md)** → Conhecer a API
+3. **[Testing Guide](testing-guide.md)** → Validar changes
+
+### 🔧 **Troubleshooting**
+1. **[Display Setup](display-setup.md)** → Problemas de visualização
+2. **[Installation](installation.md)** → Problemas de ambiente
+3. **[User Guide](user-guide.md)** → Problemas de uso
+
+---
+
+## 🔍 Busca Rápida por Tópicos
+
+### Instalação e Setup
+- [Conda Environment](installation.md#conda-setup)
+- [Dependências](installation.md#dependencies)
+- [GPU/CPU Config](installation.md#gpu-setup)
+- [Display Config](display-setup.md)
+
+### Execução
+- [Interface Desktop](quick-start.md#desktop)
+- [Interface Web](quick-start.md#web)
+- [Análise Batch](quick-start.md#analysis)
+- [Demos](quick-start.md#demos)
+
+### Desenvolvimento
+- [tofcam.lib API](api-reference.md)
+- [Arquitetura](architecture.md#overview)
+- [Extending System](architecture.md#extending)
+- [Testing](testing-guide.md)
+
+### Algoritmos
+- [MiDaS Integration](user-guide.md#midas)
+- [Strategic Navigation](user-guide.md#strategic)
+- [Reactive Avoidance](user-guide.md#reactive)
+- [Hybrid Mode](user-guide.md#hybrid)
+
+---
+
+## 📄 Sobre a Documentação
+
+### 📝 **Estrutura dos Documentos**
+- **Quick Start**: Comandos diretos, mínima explicação
+- **Installation**: Passo-a-passo detalhado
+- **User Guide**: Exemplos práticos e completos
+- **API Reference**: Documentação técnica completa
+- **Architecture**: Design e contribuição
+
+### 🔗 **Navegação**
+Todos os documentos possuem:
+- Links internos para navegação rápida
+- Referências cruzadas para tópicos relacionados
+- Links de volta para este índice
+- Seções "Ver também" onde apropriado
+
+### 💡 **Convenções**
+- 🚀 Início rápido e comandos essenciais
+- ⚙️ Configuração e setup
+- 💻 Desenvolvimento e código
+- 🔧 Troubleshooting e soluções
+- 📊 Dados, métricas e análise
+- 🎯 Objetivos e resultados esperados
+
+---
+
+**💡 Dica de Navegação:** Use Ctrl+F para buscar tópicos específicos em qualquer documento. Todos os documentos têm índice navegável no início.

@@ -12,7 +12,7 @@ import os
 # Adicionar o diretório pai ao path
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-from analyzer_lib import TOFAnalyzer, AnalysisConfig
+from tofcam.core import TOFAnalyzer, AnalysisConfig
 from tofcam.nav import StrategicPlanner, ReactiveAvoider, ZoneMapper
 from view import create_depth_colormap, draw_yaw_arrow
 

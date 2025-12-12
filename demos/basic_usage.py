@@ -11,7 +11,7 @@ import os
 # Adicionar o diretório pai ao path
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-from analyzer_lib import TOFAnalyzer, AnalysisConfig
+from tofcam.core import TOFAnalyzer, AnalysisConfig
 
 def basic_analysis_example():
     """Exemplo básico de análise usando a biblioteca centralizada."""
