@@ -10,7 +10,7 @@ python demos/run_demos.py
 ### 🌐 Para Interface Web
 ```bash
 python web_viewer_lib.py
-# Acesse: http://localhost:8080
+# Acesse: http://localhost:8081
 ```
 
 ### 💾 Para Análise e Coleta de Dados

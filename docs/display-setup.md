@@ -59,7 +59,7 @@ python run.py --host 0.0.0.0 --port 8081
 ### **Configuração Avançada**
 ```bash
 # Configurar porta específica
-python run.py --port 8080
+python run.py --port 8081
 
 # Configurar host para acesso remoto
 python run.py --host 0.0.0.0

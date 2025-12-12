@@ -60,7 +60,7 @@ python web_viewer_lib.py
 python web_viewer.py
 ```
 
-Acesse: `http://localhost:8080`
+Acesse: `http://localhost:8081`
 
 ### 💾 Modo Análise e Persistência
 
@@ -241,7 +241,7 @@ pkill -f web_viewer
 pkill -f web_viewer_lib
 
 # Verificar portas
-netstat -tlnp | grep 8080
+netstat -tlnp | grep 8081
 ```
 
 ## 📖 Exemplos de Uso

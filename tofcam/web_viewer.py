@@ -968,7 +968,7 @@ def main():
         tofcam_viewer.start_capture()
         
         # Iniciar servidor web
-        port = 8080
+        port = 8081
         server = ThreadedHTTPServer(('localhost', port), TOFcamRequestHandler)
         
         print(f"🚀 Servidor iniciado em: http://localhost:{port}")

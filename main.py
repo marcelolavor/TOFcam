@@ -23,6 +23,7 @@ import cv2
 import numpy as np
 import time
 import threading
+import signal
 from typing import Optional, NamedTuple
 from datetime import datetime
 from pathlib import Path
@@ -62,7 +63,7 @@ class PerceptionSystem:
             return None
         
         depth_map = self.depth_estimator.estimate_depth(frame)
-        nav_result = self.navigator.navigate(frame, depth_map)
+        nav_result = self.navigator.navigate(depth_map)
         
         return PerceptionOutput(
             frame, depth_map, 
@@ -180,10 +181,38 @@ class WebMode:
         self.config = TOFConfig()
         self.running = False
         self.web_interface = None
+        self.perception = None
+        # Don't setup signal handler here - wait until after initialization
+        
+    def setup_signal_handler(self):
+        """Setup signal handler for graceful shutdown"""
+        def signal_handler(sig, frame):
+            logger.info("🛑 Sinal de interrupção recebido - parando imediatamente")
+            self.running = False
+            # Force exit immediately without cleanup to avoid hanging
+            import threading
+            timer = threading.Timer(1.0, lambda: os._exit(0))
+            timer.start()
+            raise KeyboardInterrupt()
+        
+        signal.signal(signal.SIGINT, signal_handler)
+        signal.signal(signal.SIGTERM, signal_handler)
         
     def initialize(self):
         """Initialize web components"""
         logger.info("🌐 Inicializando modo Web...")
+        
+        # Limpar porta 8081 antes de iniciar
+        logger.info("🧹 Limpando porta 8081...")
+        import subprocess
+        try:
+            # Try multiple methods to clear port
+            subprocess.run(["pkill", "-f", ":8081"], check=False, capture_output=True)
+            subprocess.run(["pkill", "-f", "8081"], check=False, capture_output=True)
+            time.sleep(0.5)  # Give time for cleanup
+            logger.info("✅ Porta 8081 limpa")
+        except Exception as e:
+            logger.debug(f"Erro na limpeza da porta (normal se não houver processos): {e}")
         
         camera_manager = create_camera_manager()
         depth_estimator = create_depth_estimator()
@@ -202,7 +231,7 @@ class WebMode:
             test_config = CameraConfig(index=0, use_test_image=True)
             camera_manager.add_camera(test_config)
         
-        self.web_interface = WebIntegration(port=8080)
+        self.web_interface = WebIntegration(port=8081)
         web_info = self.web_interface.start()
         logger.info(f"Interface web disponível em: {web_info['url']}")
         
@@ -215,6 +244,9 @@ class WebMode:
         """Run web interface"""
         self.initialize()
         
+        # Setup signal handler only after initialization is complete
+        self.setup_signal_handler()
+        
         logger.info("🌐 Servidor web iniciado!")
         logger.info("📱 Acesse a interface web para visualizar")
         logger.info("🛑 Pressione Ctrl+C para parar")
@@ -225,9 +257,17 @@ class WebMode:
         
         try:
             while self.running:
+                # Quick check for interrupt
+                if not self.running:
+                    break
+                    
+                if not hasattr(self, 'perception') or self.perception is None:
+                    logger.error("Perception system not initialized")
+                    break
+                    
                 output = self.perception.process_once()
                 if output is None:
-                    time.sleep(0.1)
+                    time.sleep(0.01)  # Shorter sleep for faster response
                     continue
                 
                 frame_count += 1
@@ -240,15 +280,33 @@ class WebMode:
                     last_fps_time = current_time
                     
         except KeyboardInterrupt:
-            logger.info("Aplicação interrompida pelo usuário")
+            logger.info("🚨 Interrupção detectada - parando...")
+            self.running = False
+        except Exception as e:
+            logger.error(f"❌ Erro na execução: {e}")
         finally:
-            self.shutdown()
+            try:
+                self.shutdown()
+            except:
+                pass
+            logger.info("✅ Programa finalizado")
     
     def shutdown(self):
         """Shutdown web interface"""
         self.running = False
-        if self.web_interface:
-            self.web_interface.stop()
+        try:
+            if hasattr(self, 'web_interface') and self.web_interface:
+                self.web_interface.stop()
+        except Exception as e:
+            logger.debug(f"Erro parando web interface: {e}")
+        
+        try:
+            if hasattr(self, 'perception') and self.perception:
+                # Cleanup perception resources if needed
+                pass
+        except Exception as e:
+            logger.debug(f"Erro limpando perception: {e}")
+        
         logger.info("🛑 Web mode stopped")
 
 # =============================================================================
@@ -391,6 +449,14 @@ def interactive_mode():
 
 def main():
     """Main entry point with argument parsing"""
+    # Setup global signal handler as a fallback
+    def global_signal_handler(sig, frame):
+        logger.info("🚨 Forçando parada do programa...")
+        os._exit(1)
+    
+    signal.signal(signal.SIGINT, global_signal_handler)
+    signal.signal(signal.SIGTERM, global_signal_handler)
+    
     parser = argparse.ArgumentParser(
         description='TOFcam - Professional Time-of-Flight Analysis',
         formatter_class=argparse.RawDescriptionHelpFormatter,

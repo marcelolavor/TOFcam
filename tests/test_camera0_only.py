@@ -56,7 +56,7 @@ class ThreadingHTTPServer(ThreadingMixIn, HTTPServer):
     allow_reuse_address = True
 
 class TOFcamWebViewer:
-    def __init__(self, port=8080):
+    def __init__(self, port=8081):
         self.port = port
         self.current_camera = 0
         self.available_cameras = [0]  # Força apenas câmera 0
@@ -607,15 +607,15 @@ def main():
     
     try:
         # Criar e configurar servidor
-        viewer = TOFcamWebViewer(port=8080)
+        viewer = TOFcamWebViewer(port=8081)
         
-        server = ThreadingHTTPServer(('localhost', 8080), WebRequestHandler)
+        server = ThreadingHTTPServer(('localhost', 8081), WebRequestHandler)
         server.viewer = viewer
         
         # Iniciar captura
         viewer.start_capture()
         
-        print(f"🚀 Servidor iniciado em http://localhost:8080")
+        print(f"🚀 Servidor iniciado em http://localhost:8081")
         print("📋 Pressione Ctrl+C para parar")
         
         try:

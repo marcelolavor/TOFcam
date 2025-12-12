@@ -7,7 +7,7 @@
 # Execute o visualizador web
 python web_viewer.py
 
-# Abra no navegador: http://localhost:8080
+# Abra no navegador: http://localhost:8081
 ```
 
 **Vantagens:**
@@ -58,7 +58,7 @@ python main_analyzer.py
 
 2. **Abra o navegador:**
    - No VS Code: `Ctrl+Shift+P` → "Simple Browser: Show"
-   - Digite: `http://localhost:8080`
+   - Digite: `http://localhost:8081`
 
 3. **Pronto!** Você verá:
    - Stream de vídeo em tempo real
@@ -119,7 +119,7 @@ python main_analyzer.py
 ### **VS Code Simple Browser**
 1. `Ctrl+Shift+P`
 2. Digite: "Simple Browser: Show"
-3. URL: `http://localhost:8080`
+3. URL: `http://localhost:8081`
 
 ### **Para Apresentações**
 - Use Web Viewer: interface limpa e profissional
@@ -136,7 +136,7 @@ python main_analyzer.py
 **Quer ver rapidamente?**
 ```bash
 python web_viewer.py
-# Abra http://localhost:8080 no navegador
+# Abra http://localhost:8081 no navegador
 ```
 
 **Quer configuração completa?**
