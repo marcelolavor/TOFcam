@@ -22,10 +22,10 @@ __license__ = "MIT"
 
 # Core imports for easy access
 from .core import TOFAnalyzer, AnalysisConfig
-from .web import WebServer
+from .web import TOFcamWebViewer
 
 __all__ = [
     'TOFAnalyzer',
     'AnalysisConfig',
-    'WebServer'
+    'TOFcamWebViewer'
 ]

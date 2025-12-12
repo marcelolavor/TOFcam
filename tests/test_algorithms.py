@@ -10,7 +10,7 @@ import os
 # Adicionar o diretório pai ao path para importar os módulos
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-from mapping import StrategicNavigationAlgorithm, ReactiveAvoidanceAlgorithm
+from tofcam.nav import StrategicPlanner, ReactiveAvoider, ZoneMapper
 
 def create_test_depth_map(scenario):
     """Criar mapas de profundidade para cenários específicos."""
@@ -47,8 +47,9 @@ def test_algorithm_comparison():
     print("=" * 60)
     
     # Inicializar algoritmos
-    strategic = StrategicNavigationAlgorithm()
-    reactive = ReactiveAvoidanceAlgorithm()
+    strategic = StrategicPlanner()
+    reactive = ReactiveAvoider()
+    zone_mapper = ZoneMapper(grid_h=6, grid_w=8)  # Grid para testes
     
     # Cenários de teste
     scenarios = [
@@ -66,13 +67,16 @@ def test_algorithm_comparison():
         # Criar mapa de profundidade
         depth_map = create_test_depth_map(scenario_key)
         
+        # Criar grid de zonas
+        zone_grid = zone_mapper.map_depth_to_zones(depth_map)
+        
         # Processar com ambos algoritmos
-        strategic_result = strategic.process(depth_map)
-        reactive_result = reactive.process(depth_map)
+        strategic_result = strategic.plan(zone_grid)
+        reactive_result = reactive.compute(zone_grid)
         
         # Resultados
-        strategic_yaw = strategic_result['yaw_delta']
-        reactive_yaw = reactive_result['yaw_delta']
+        strategic_yaw = np.rad2deg(strategic_result.target_yaw_delta)
+        reactive_yaw = np.rad2deg(reactive_result.yaw_delta)
         
         print(f"📊 Strategic: {strategic_yaw:+.3f}°")
         print(f"⚡ Reactive:  {reactive_yaw:+.3f}°")
@@ -112,8 +116,9 @@ def test_edge_cases():
     print("\n\n🔥 TESTE DE CASOS EXTREMOS")
     print("=" * 60)
     
-    strategic = StrategicNavigationAlgorithm()
-    reactive = ReactiveAvoidanceAlgorithm()
+    strategic = StrategicPlanner()
+    reactive = ReactiveAvoider()
+    zone_mapper = ZoneMapper(grid_h=6, grid_w=8)  # Grid para testes
     
     # Casos extremos
     edge_cases = [
@@ -137,11 +142,14 @@ def test_edge_cases():
         elif case_key == "gradient_right":
             depth_map = np.tile(np.linspace(5.0, 0.5, 640), (480, 1)).astype(np.float32)
         
-        strategic_result = strategic.process(depth_map)
-        reactive_result = reactive.process(depth_map)
+        # Criar grid de zonas
+        zone_grid = zone_mapper.map_depth_to_zones(depth_map)
         
-        print(f"📊 Strategic: {strategic_result['yaw_delta']:+.3f}°")
-        print(f"⚡ Reactive:  {reactive_result['yaw_delta']:+.3f}°")
+        strategic_result = strategic.plan(zone_grid)
+        reactive_result = reactive.compute(zone_grid)
+        
+        print(f"📊 Strategic: {np.rad2deg(strategic_result.target_yaw_delta):+.3f}°")
+        print(f"⚡ Reactive:  {np.rad2deg(reactive_result.yaw_delta):+.3f}°")
 
 if __name__ == "__main__":
     test_algorithm_comparison()
