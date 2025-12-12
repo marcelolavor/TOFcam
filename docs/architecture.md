@@ -39,22 +39,66 @@ graph TD
 
 ## 🏛️ **Arquitetura em Camadas** {#arquitetura-em-camadas}
 
+```mermaid
+graph TB
+    subgraph INTERFACES ["INTERFACES"]
+        Desktop["Desktop Interface"]
+        Web["Web Interface"]
+        Analysis["Analysis Tools"]
+    end
+    
+    subgraph BIBLIOTECA ["BIBLIOTECA"]
+        Camera["Camera"]
+        Depth["Depth Estimation"]
+        Navigation["Navigation"]
+    end
+    
+    subgraph ENGINES ["ENGINES"]
+        OpenCV["OpenCV"]
+        Neural["MiDaS Neural Network"]
+        Threading["Threading Management"]
+    end
+    
+    subgraph HARDWARE ["HARDWARE"]
+        USB["USB Cameras"]
+        Compute["GPU/CPU Processing"]
+    end
+    
+    Desktop --> Camera
+    Web --> Camera
+    Analysis --> Depth
+    
+    Camera --> OpenCV
+    Depth --> Neural
+    Navigation --> Threading
+    
+    OpenCV --> USB
+    Neural --> Compute
+    Threading --> Compute
+    
+    classDef nodeStyle fill:#ffffff,stroke:#6c757d,stroke-width:1px,color:#212529
+    classDef subgraphStyle fill:#f8f9fa,stroke:#343a40,stroke-width:2px
+    
+    class Desktop,Web,Analysis,Camera,Depth,Navigation,OpenCV,Neural,Threading,USB,Compute nodeStyle
 ```
-┌─────────────────────────────────────────────────────────┐
-│                    APPLICATION LAYER                    │
-│  main.py  │  run.py  │  main_analyzer.py  │  demos/    │
-├─────────────────────────────────────────────────────────┤
-│                      API LAYER                         │
-│                    tofcam.lib                          │
-│  camera │ depth │ navigation │ visualization │ web     │
-├─────────────────────────────────────────────────────────┤
-│                    ENGINE LAYER                        │
-│   MiDaS Neural Network  │  OpenCV  │  Threading        │
-├─────────────────────────────────────────────────────────┤
-│                   HARDWARE LAYER                       │
-│      USB Cameras     │     GPU/CPU     │   Display     │
-└─────────────────────────────────────────────────────────┘
-```
+
+### **🎯 Propósito das Camadas**
+
+#### **🎯 Interfaces de Usuário**
+**Para que serve:** Pontos de entrada para diferentes tipos de usuários  
+**Responsabilidade:** Apresentar funcionalidades de forma adequada ao contexto de uso
+
+#### **🔧 Biblioteca Unificada (tofcam.lib)**
+**Para que serve:** Centralizar toda lógica de negócio em API consistente  
+**Responsabilidade:** Eliminar duplicação de código e garantir comportamento uniforme
+
+#### **⚙️ Processamento Core**
+**Para que serve:** Executar operações computacionalmente intensivas  
+**Responsabilidade:** Otimizar performance através de engines especializados
+
+#### **🔌 Recursos Físicos**
+**Para que serve:** Abstrair acesso ao hardware do sistema  
+**Responsabilidade:** Gerenciar dispositivos físicos e recursos computacionais
 
 ### **1. Application Layer**
 - **main.py:** Interface desktop com 4 janelas
