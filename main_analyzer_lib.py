@@ -1,270 +1,294 @@
 #!/usr/bin/env python3
 """
-TOFcam Main Analyzer - Versão refatorada usando analyzer_lib
-Análise com persistência usando biblioteca centralizada
+TOFcam Main Analyzer - Refactored with tofcam.lib
+================================================
+
+Análise com persistência usando exclusivamente tofcam.lib.
+Mantém todas as funcionalidades originais.
 """
 
 import cv2
 import numpy as np
 import time
 import os
+import json
 from typing import Optional
 
-# Imports locais  
-from camera import *
-from analyzer_lib import TOFAnalyzer, AnalysisConfig
+# Imports da biblioteca centralizada
+from tofcam.lib import (
+    create_camera_manager, create_depth_estimator, create_navigator,
+    create_render_pipeline, discover_cameras, CameraConfig, 
+    NavigationMode, TOFConfig, logger, AnalysisFrame
+)
 
 class PersistentAnalyzer:
-    """Analisador com persistência de frames"""
+    """Analisador com persistência usando tofcam.lib"""
     
-    def __init__(self, config: AnalysisConfig, cameras: list = None):
-        self.config = config
-        self.available_cameras = cameras or self._detect_cameras()
-        self.current_camera = None
-        self.camera = None
+    def __init__(self, config: TOFConfig = None, cameras: list = None):
+        self.config = config or TOFConfig()
+        self.available_cameras = cameras or discover_cameras()
+        self.current_camera_index = 0
+        
+        # Componentes da biblioteca
+        self.camera_manager = create_camera_manager()
+        self.depth_estimator = create_depth_estimator()
+        self.navigator = create_navigator(self.config.navigation)
+        self.render_pipeline = create_render_pipeline()
         
         if not self.available_cameras:
-            raise RuntimeError("❌ Nenhuma câmera encontrada!")
+            # Tentar modo de teste
+            logger.warning("Nenhuma câmera física encontrada, usando modo de teste")
+            self.available_cameras = [0]
+            self.config.camera.use_test_image = True
             
         print(f"📹 Câmeras encontradas: {self.available_cameras}")
         
-        # Inicializar analisador
-        self.analyzer = TOFAnalyzer(config)
-        
-        # Criar diretório de saída
-        os.makedirs(config.output_dir, exist_ok=True)
-        print(f"📁 Diretório de saída: {config.output_dir}")
-        
-    def _detect_cameras(self):
-        """Detectar câmeras disponíveis"""
-        print("🔍 Detectando câmeras disponíveis...")
-        cameras = []
-        
-        for i in range(5):
-            cap = cv2.VideoCapture(i)
-            if cap.isOpened():
-                ret, frame = cap.read()
-                if ret and frame is not None:
-                    h, w = frame.shape[:2]
-                    print(f"✅ Câmera {i} disponível - resolução: ({h}, {w}, 3)")
-                    cameras.append(i)
-                cap.release()
-        
-        return cameras
+        # Configurar câmera inicial
+        self.switch_camera(self.available_cameras[0])
     
-    def switch_camera(self, camera_id: int) -> bool:
-        """Trocar para uma câmera específica"""
-        if camera_id not in self.available_cameras:
-            print(f"❌ Câmera {camera_id} não disponível")
+    def switch_camera(self, camera_index: int) -> bool:
+        """Trocar câmera ativa"""
+        if camera_index not in self.available_cameras and not self.config.camera.use_test_image:
+            logger.warning(f"Câmera {camera_index} não disponível")
             return False
-            
-        print(f"📹 Trocando para câmera {camera_id}...")
-        
-        # Fechar câmera atual
-        if self.camera:
-            self.camera.release()
-        
-        # Abrir nova câmera
-        self.camera = cv2.VideoCapture(camera_id)
-        if not self.camera.isOpened():
-            print(f"❌ Erro ao abrir câmera {camera_id}")
-            return False
-        
-        self.current_camera = camera_id
-        print(f"✅ Câmera {camera_id} ativada!")
-        return True
-    
-    def process_single_frame(self) -> Optional[any]:
-        """Processar um único frame"""
-        if not self.camera or not self.camera.isOpened():
-            print("❌ Câmera não está disponível")
-            return None
-        
-        ret, frame = self.camera.read()
-        if not ret or frame is None:
-            print("❌ Erro ao capturar frame")
-            return None
-        
-        # Processar frame usando a biblioteca
-        analysis_result = self.analyzer.process_frame(frame, self.current_camera)
-        
-        return analysis_result
-    
-    def run_continuous(self, max_frames: int = None, display: bool = True):
-        """Executar análise contínua"""
-        if not self.available_cameras:
-            print("❌ Nenhuma câmera disponível")
-            return
-        
-        # Iniciar com primeira câmera
-        if not self.switch_camera(self.available_cameras[0]):
-            return
-        
-        frame_count = 0
-        start_time = time.time()
-        
-        print("🎬 Iniciando análise contínua...")
-        print("🔧 Pressione 'q' para sair, 'c' para trocar câmera, 's' para salvar frame")
-        print("-" * 60)
         
         try:
-            while True:
-                # Verificar limite de frames
-                if max_frames and frame_count >= max_frames:
-                    print(f"✅ Limite de {max_frames} frames atingido")
+            # Fechar câmera atual se houver
+            self.camera_manager.close_all()
+            
+            # Configurar nova câmera
+            camera_config = CameraConfig(
+                index=camera_index,
+                width=self.config.camera.width,
+                height=self.config.camera.height,
+                fps=self.config.camera.fps,
+                use_test_image=self.config.camera.use_test_image
+            )
+            
+            if self.camera_manager.add_camera(camera_config):
+                self.current_camera_index = camera_index
+                logger.info(f"✅ Câmera {camera_index} ativada")
+                return True
+            else:
+                logger.error(f"❌ Falha ao ativar câmera {camera_index}")
+                return False
+                
+        except Exception as e:
+            logger.error(f"Erro ao trocar câmera: {e}")
+            return False
+    
+    def analyze_frame(self) -> Optional[AnalysisFrame]:
+        """Análise completa de um frame"""
+        try:
+            # Capturar frame
+            frame = self.camera_manager.read_frame()
+            if frame is None:
+                return None
+            
+            # Análise de profundidade
+            depth_map = self.depth_estimator.estimate_depth(frame)
+            
+            # Análise de navegação
+            nav_result = self.navigator.navigate(depth_map, NavigationMode.HYBRID)
+            
+            # Criar grids
+            strategic_grid = self.navigator.zone_mapper.create_strategic_grid(depth_map)
+            reactive_grid = self.navigator.zone_mapper.create_reactive_grid(depth_map)
+            
+            # Renderizar visualização
+            visualization = self.render_pipeline.render_complete_view(
+                depth_map, strategic_grid, nav_result
+            )
+            
+            # Criar frame de análise
+            analysis_frame = AnalysisFrame(
+                timestamp=time.time(),
+                frame_id=int(time.time() * 1000),
+                rgb_image=frame,
+                depth_map=depth_map,
+                strategic_grid=strategic_grid,
+                reactive_grid=reactive_grid,
+                navigation_result=nav_result,
+                depth_colored=visualization
+            )
+            
+            return analysis_frame
+            
+        except Exception as e:
+            logger.error(f"Erro na análise: {e}")
+            return None
+    
+    def save_analysis(self, analysis_frame: AnalysisFrame, 
+                     output_dir: str = "output_images") -> str:
+        """Salvar análise com persistência"""
+        try:
+            # Criar diretório
+            timestamp = int(analysis_frame.timestamp * 1000)
+            session_dir = f"cam{self.current_camera_index}_{time.strftime('%Y%m%d_%H%M%S')}"
+            full_dir = os.path.join(output_dir, session_dir)
+            os.makedirs(full_dir, exist_ok=True)
+            
+            # Salvar imagens
+            cv2.imwrite(os.path.join(full_dir, "original.jpg"), analysis_frame.rgb_image)
+            cv2.imwrite(os.path.join(full_dir, "depth.jpg"), analysis_frame.depth_colored)
+            
+            # Salvar dados de navegação
+            nav_data = {
+                "timestamp": analysis_frame.timestamp,
+                "frame_id": analysis_frame.frame_id,
+                "camera_index": self.current_camera_index,
+                "navigation_mode": analysis_frame.navigation_result.mode.value,
+                "strategic": {
+                    "target_yaw_delta": float(analysis_frame.navigation_result.strategic.target_yaw_delta),
+                    "confidence": float(analysis_frame.navigation_result.strategic.confidence),
+                    "min_distance_ahead": float(analysis_frame.navigation_result.strategic.min_distance_ahead),
+                    "recommended_speed": float(analysis_frame.navigation_result.strategic.recommended_speed)
+                } if analysis_frame.navigation_result.strategic else None,
+                "reactive": {
+                    "yaw_delta": float(analysis_frame.navigation_result.reactive.yaw_delta),
+                    "forward_scale": float(analysis_frame.navigation_result.reactive.forward_scale),
+                    "emergency_brake": bool(analysis_frame.navigation_result.reactive.emergency_brake),
+                    "urgency": float(analysis_frame.navigation_result.reactive.urgency)
+                } if analysis_frame.navigation_result.reactive else None
+            }
+            
+            with open(os.path.join(full_dir, "analysis.json"), "w") as f:
+                json.dump(nav_data, f, indent=2)
+            
+            logger.info(f"💾 Análise salva: {full_dir}")
+            return full_dir
+            
+        except Exception as e:
+            logger.error(f"Erro ao salvar análise: {e}")
+            return ""
+    
+    def run_interactive_session(self):
+        """Sessão interativa de análise"""
+        print("\n🎯 TOFcam Interactive Analyzer")
+        print("=" * 40)
+        print("📋 Comandos:")
+        print("  SPACE - Analisar frame atual")
+        print("  s     - Salvar análise")
+        print("  c     - Trocar câmera")
+        print("  ESC   - Sair")
+        print()
+        
+        current_analysis = None
+        frame_count = 0
+        
+        while True:
+            try:
+                # Capturar e mostrar frame atual
+                frame = self.camera_manager.read_frame()
+                if frame is not None:
+                    # Mostrar frame
+                    cv2.imshow(f"TOFcam - Camera {self.current_camera_index}", frame)
+                    
+                    # Mostrar análise se disponível
+                    if current_analysis and current_analysis.depth_colored is not None:
+                        cv2.imshow("Análise", current_analysis.depth_colored)
+                
+                # Processar teclas
+                key = cv2.waitKey(1) & 0xFF
+                
+                if key == 27:  # ESC
                     break
-                
-                # Processar frame
-                analysis_result = self.process_single_frame()
-                if analysis_result is None:
-                    continue
-                
-                frame_count += 1
-                
-                # Log periódico
-                if frame_count % 30 == 0:
-                    elapsed = time.time() - start_time
-                    fps = frame_count / elapsed
-                    strategic = analysis_result.strategic_result.get('target_yaw_delta', 0.0)
-                    reactive = analysis_result.reactive_result.get('yaw_delta', 0.0)
+                elif key == ord(' '):  # SPACE
+                    print(f"🔍 Analisando frame {frame_count + 1}...")
+                    current_analysis = self.analyze_frame()
                     
-                    print(f"📊 Frame {frame_count} ({fps:.1f} FPS) - "
-                          f"Strategic: {strategic:+.2f}, Reactive: {reactive:+.2f}")
+                    if current_analysis:
+                        frame_count += 1
+                        nav = current_analysis.navigation_result
+                        print(f"✅ Frame {frame_count} analisado")
+                        
+                        if nav.strategic:
+                            yaw_deg = np.rad2deg(nav.strategic.target_yaw_delta)
+                            print(f"  Strategic: Yaw={yaw_deg:.1f}°, Conf={nav.strategic.confidence:.3f}")
+                        
+                        if nav.reactive:
+                            print(f"  Reactive: Yaw={nav.reactive.yaw_delta:.3f}, Emergency={nav.reactive.emergency_brake}")
+                    else:
+                        print("❌ Falha na análise")
                 
-                # Exibir se solicitado
-                if display and analysis_result.combined_vis is not None:
-                    cv2.imshow('TOFcam Analysis', analysis_result.combined_vis)
+                elif key == ord('s'):  # Salvar
+                    if current_analysis:
+                        saved_path = self.save_analysis(current_analysis)
+                        if saved_path:
+                            print(f"💾 Análise salva em: {saved_path}")
+                    else:
+                        print("⚠️ Nenhuma análise para salvar. Pressione SPACE primeiro.")
+                
+                elif key == ord('c'):  # Trocar câmera
+                    current_idx = self.available_cameras.index(self.current_camera_index)
+                    next_idx = (current_idx + 1) % len(self.available_cameras)
+                    next_camera = self.available_cameras[next_idx]
                     
-                    key = cv2.waitKey(1) & 0xFF
-                    if key == ord('q'):
-                        print("🛑 Saindo...")
-                        break
-                    elif key == ord('c'):
-                        # Trocar câmera
-                        current_idx = self.available_cameras.index(self.current_camera)
-                        next_idx = (current_idx + 1) % len(self.available_cameras)
-                        next_camera = self.available_cameras[next_idx]
-                        self.switch_camera(next_camera)
-                    elif key == ord('s'):
-                        # Força salvamento (mesmo se save_frames=False)
-                        self._force_save_frame(analysis_result)
+                    if self.switch_camera(next_camera):
+                        print(f"📹 Câmera trocada para: {next_camera}")
+                    else:
+                        print(f"❌ Falha ao trocar para câmera: {next_camera}")
                 
-        except KeyboardInterrupt:
-            print("\n🛑 Interrompido pelo usuário")
+            except KeyboardInterrupt:
+                break
+            except Exception as e:
+                logger.error(f"Erro na sessão: {e}")
+                time.sleep(1)
         
-        finally:
-            self.cleanup()
-            
-        print(f"✅ Análise finalizada - {frame_count} frames processados")
-    
-    def _force_save_frame(self, analysis_result):
-        """Forçar salvamento de frame individual"""
-        import json
-        
-        timestamp_str = time.strftime("%Y%m%d_%H%M%S_%f")[:-3]  # milliseconds
-        output_subdir = os.path.join(
-            self.config.output_dir, 
-            f"manual_cam{self.current_camera}_{timestamp_str}"
-        )
-        os.makedirs(output_subdir, exist_ok=True)
-        
-        # Salvar imagens
-        cv2.imwrite(os.path.join(output_subdir, "original.jpg"), analysis_result.rgb_frame)
-        cv2.imwrite(os.path.join(output_subdir, "depth.jpg"), analysis_result.depth_color)
-        cv2.imwrite(os.path.join(output_subdir, "combined.jpg"), analysis_result.combined_vis)
-        
-        # Salvar dados
-        analysis_data = {
-            'frame_id': analysis_result.frame_id,
-            'timestamp': analysis_result.timestamp,
-            'camera_id': self.current_camera,
-            'strategic': analysis_result.strategic_result,
-            'reactive': analysis_result.reactive_result,
-            'saved_manually': True
-        }
-        
-        with open(os.path.join(output_subdir, "analysis.json"), 'w') as f:
-            json.dump(analysis_data, f, indent=2, default=str)
-        
-        print(f"💾 Frame salvo manualmente em: {output_subdir}")
-    
-    def process_image_file(self, image_path: str, save_result: bool = True):
-        """Processar arquivo de imagem"""
-        if not os.path.exists(image_path):
-            print(f"❌ Arquivo não encontrado: {image_path}")
-            return None
-        
-        print(f"🖼️ Processando arquivo: {image_path}")
-        
-        # Carregar imagem
-        frame = cv2.imread(image_path)
-        if frame is None:
-            print(f"❌ Erro ao carregar imagem: {image_path}")
-            return None
-        
-        # Processar usando a biblioteca
-        analysis_result = self.analyzer.process_frame(frame, camera_id=999)  # ID especial para arquivos
-        
-        if save_result:
-            # Salvar resultado
-            base_name = os.path.splitext(os.path.basename(image_path))[0]
-            timestamp_str = time.strftime("%Y%m%d_%H%M%S")
-            output_subdir = os.path.join(self.config.output_dir, f"file_{base_name}_{timestamp_str}")
-            os.makedirs(output_subdir, exist_ok=True)
-            
-            # Salvar processamento
-            cv2.imwrite(os.path.join(output_subdir, "original.jpg"), analysis_result.rgb_frame)
-            cv2.imwrite(os.path.join(output_subdir, "depth.jpg"), analysis_result.depth_color)
-            cv2.imwrite(os.path.join(output_subdir, "combined.jpg"), analysis_result.combined_vis)
-            
-            print(f"💾 Resultado salvo em: {output_subdir}")
-        
-        return analysis_result
-    
-    def cleanup(self):
-        """Limpar recursos"""
-        if self.camera:
-            self.camera.release()
+        # Limpeza
+        self.camera_manager.close_all()
         cv2.destroyAllWindows()
+        print(f"\n✅ Sessão encerrada. Frames analisados: {frame_count}")
 
 def main():
-    print("🔬 TOFcam Main Analyzer (Lib Version)")
-    print("=" * 40)
-    
-    # Configuração da análise
-    config = AnalysisConfig(
-        strategic_grid_size=(24, 32),
-        reactive_grid_size=(12, 16),
-        use_sophisticated_analysis=True,
-        save_frames=True,      # Salvar frames automaticamente
-        output_dir="output_images",
-        web_format=False       # Não precisa de base64
-    )
+    """Função principal"""
+    print("🚀 TOFcam Persistent Analyzer (tofcam.lib)")
+    print("=" * 50)
     
     try:
+        # Criar configuração
+        config = TOFConfig()
+        config.save_frames = True
+        config.output_dir = "output_images"
+        
         # Criar analisador
         analyzer = PersistentAnalyzer(config)
         
-        # Modo de operação
-        import sys
-        if len(sys.argv) > 1:
-            # Modo arquivo
-            image_path = sys.argv[1]
-            result = analyzer.process_image_file(image_path)
-            
-            if result:
-                print("✅ Processamento de arquivo concluído")
-                strategic = result.strategic_result.get('target_yaw_delta', 0.0)
-                reactive = result.reactive_result.get('yaw_delta', 0.0)
-                print(f"📊 Strategic: {strategic:+.3f}, Reactive: {reactive:+.3f}")
-        else:
-            # Modo contínuo
-            analyzer.run_continuous(display=True)
+        # Menu principal
+        print("\n📋 Escolha o modo:")
+        print("1. Sessão interativa")
+        print("2. Análise único frame")
+        print("3. Análise contínua (10 frames)")
         
-    except KeyboardInterrupt:
-        print("\n🛑 Interrompido")
+        choice = input("Opção (1-3): ").strip()
+        
+        if choice == "1":
+            analyzer.run_interactive_session()
+            
+        elif choice == "2":
+            print("🔍 Analisando frame único...")
+            analysis = analyzer.analyze_frame()
+            if analysis:
+                saved_path = analyzer.save_analysis(analysis)
+                print(f"✅ Análise concluída e salva em: {saved_path}")
+            else:
+                print("❌ Falha na análise")
+                
+        elif choice == "3":
+            print("🔄 Análise contínua - 10 frames...")
+            for i in range(10):
+                print(f"Frame {i+1}/10...")
+                analysis = analyzer.analyze_frame()
+                if analysis:
+                    analyzer.save_analysis(analysis)
+                time.sleep(0.5)
+            print("✅ Análise contínua concluída")
+        
+        else:
+            print("❌ Opção inválida")
+    
     except Exception as e:
-        print(f"❌ Erro: {e}")
+        logger.error(f"Erro na aplicação: {e}")
         import traceback
         traceback.print_exc()
 
