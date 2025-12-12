@@ -37,7 +37,7 @@ except ImportError as e:
     USE_DEPTH_ESTIMATION = False
 
 try:
-    from mapping import StrategicPlanner, ReactiveAvoider
+    from tofcam.nav import StrategicPlanner, ReactiveAvoider
     print("✅ Mappers carregados")
 except ImportError as e:
     print(f"⚠️ Mapping não disponível: {e}")

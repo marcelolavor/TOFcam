@@ -6,20 +6,19 @@ Sistema organizador de testes interativo para validação completa do projeto TO
 
 ### 📹 Hardware
 - **test_cameras.py** - Detecta e testa todas as câmeras disponíveis
-- **test_camera0_only.py** - Teste específico e detalhado da câmera 0
-- **test_camera2.py** - Teste específico e detalhado da câmera 2  
-- **test_usb_camera.py** - Detecta e testa câmeras USB especificamente
+- **test_camera0_only.py** - Servidor web completo com análise de profundidade usando câmera 0
 
 ### 🧠 Algoritmos
 - **test_algorithms.py** - Validação dos algoritmos Strategic e Reactive
 - **test_arrows.py** - Teste de cálculo e exibição de direções
 
-### 🌐 Interface
-- **test_image_server.py** - Validação do streaming web de imagens
+### 🔬 Integração
+- **test_integration.py** - Teste de integração completa do sistema
+- **test_performance.py** - Benchmark de performance e velocidade
 
 ### 🧪 Biblioteca
 - **demo_lib.py** - Demonstração da biblioteca centralizada com diferentes configurações
-- **main_analyzer_lib.py** - Teste do analyzer com persistência usando a biblioteca
+- **main_analyzer_lib.py** - Teste do analyzer com persistência usando a biblioteca  
 - **web_viewer_lib.py** - Teste da interface web refatorada
 
 ## 🚀 Como Usar

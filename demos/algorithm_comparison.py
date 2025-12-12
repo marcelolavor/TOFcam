@@ -13,7 +13,7 @@ import os
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from analyzer_lib import TOFAnalyzer, AnalysisConfig
-from mapping import StrategicNavigationAlgorithm, ReactiveAvoidanceAlgorithm
+from tofcam.nav import StrategicPlanner, ReactiveAvoider, ZoneMapper
 from view import create_depth_colormap, draw_yaw_arrow
 
 def create_comparison_view(frame, depth_map, strategic_result, reactive_result):
@@ -83,8 +83,9 @@ def algorithm_comparison_demo():
         analyzer = TOFAnalyzer(config=config)
         
         # Algoritmos para comparação individual
-        strategic = StrategicNavigationAlgorithm()
-        reactive = ReactiveAvoidanceAlgorithm()
+        strategic = StrategicPlanner()
+        reactive = ReactiveAvoider()
+        zone_mapper = ZoneMapper(grid_h=6, grid_w=8)
         
         print("✅ Sistema pronto!")
         print("\nControles:")

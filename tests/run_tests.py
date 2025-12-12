@@ -21,20 +21,19 @@ class TestManager:
         """Descobrir todos os testes disponíveis organizados por categoria"""
         tests = {
             "📹 Hardware": [
-                ("test_cameras.py", "Testa acesso às câmeras", "Verificar câmeras disponíveis"),
-                ("test_camera0_only.py", "Teste específico câmera 0", "Validar funcionamento câmera 0"),
-                ("test_camera2.py", "Teste específico câmera 2", "Validar funcionamento câmera 2"),
-                ("test_usb_camera.py", "Teste câmeras USB", "Detectar e testar câmeras USB"),
+                ("test_cameras.py", "Testa acesso às câmeras", "Detectar e validar câmeras disponíveis"),
+                ("test_camera0_only.py", "Web viewer câmera 0", "Servidor web completo com câmera 0"),
             ],
             "🧠 Algoritmos": [
                 ("test_algorithms.py", "Teste algoritmos navegação", "Validar Strategic e Reactive"),
                 ("test_arrows.py", "Teste setas direção", "Verificar cálculo de direções"),
             ],
-            "🌐 Interface": [
-                ("test_image_server.py", "Teste servidor imagens", "Validar streaming web"),
+            "🔬 Integração": [
+                ("test_integration.py", "Teste integração completa", "Validar sistema integrado"),
+                ("test_performance.py", "Benchmark de performance", "Medir velocidade dos algoritmos"),
             ],
             "🧪 Biblioteca": [
-                ("../demo_lib.py", "Demo biblioteca centralizada", "Testar diferentes configurações"),
+                ("../demos/library/demo_lib.py", "Demo biblioteca centralizada", "Testar diferentes configurações"),
                 ("../main_analyzer_lib.py", "Analyzer biblioteca", "Teste análise com persistência"),
                 ("../web_viewer_lib.py", "Web viewer biblioteca", "Teste interface web refatorada"),
             ],
