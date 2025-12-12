@@ -2,7 +2,10 @@ import cv2
 import numpy as np
 from typing import Optional, TYPE_CHECKING
 from dataclasses import dataclass
-from .tof_types import DepthEstimator, ZoneGrid, StrategicPlan, ReactiveCommand
+try:
+    from tofcam.tof_types import DepthEstimator, ZoneGrid, StrategicPlan, ReactiveCommand
+except ImportError:
+    from tof_types import DepthEstimator, ZoneGrid, StrategicPlan, ReactiveCommand
 
 if TYPE_CHECKING:
     from mapping import ZoneMapper, StrategicPlanner, ReactiveAvoider

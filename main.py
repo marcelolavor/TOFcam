@@ -1,38 +1,54 @@
 #!/usr/bin/env python3
 """
-TOFcam - Main Application (Refactored with Full Functionality)
-============================================================
+TOFcam - Unified Application Entry Point
+=======================================
 
-Versão refatorada mantendo 100% das funcionalidades originais:
-- 4 janelas de visualização separadas
-- MiDaS depth estimation
-- Zone mapping strategic e reactive  
-- Sistema de percepção completo
-- Métricas de navegação detalhadas
+Professional Time-of-Flight camera analysis application with three operation modes:
+- Desktop: 4-window visualization interface  
+- Web: Browser-based streaming interface
+- Analysis: Background processing with file output
+
+Usage:
+    python main.py                    # Interactive mode selection
+    python main.py --desktop         # Desktop interface
+    python main.py --web             # Web interface
+    python main.py --analysis        # Analysis mode
+    python main.py --help            # Show this help
 """
 
+import argparse
+import sys
+import os
 import cv2
 import numpy as np
 import time
-from typing import NamedTuple, Optional
+import threading
+from typing import Optional, NamedTuple
+from datetime import datetime
+from pathlib import Path
 
 from tofcam.lib import (
     create_camera_manager, create_depth_estimator, create_navigator,
     create_render_pipeline, create_zone_renderer, create_depth_renderer,
-    NavigationMode, CameraConfig, NavigationConfig, logger
+    WebIntegration, TOFConfig, NavigationMode, CameraConfig, 
+    NavigationConfig, logger, AnalysisFrame, discover_cameras
 )
 
+# =============================================================================
+# Shared Components
+# =============================================================================
+
 class PerceptionOutput(NamedTuple):
-    """Saída do sistema de percepção - compatível com código original"""
+    """Unified perception output for all modes"""
     frame: np.ndarray
     depth_map: np.ndarray
-    strategic_grid: object  # ZoneGrid
-    reactive_grid: object   # ZoneGrid 
-    strategic_plan: object  # StrategicPlan
-    reactive_cmd: object    # ReactiveCommand
+    strategic_grid: object
+    reactive_grid: object
+    strategic_plan: object
+    reactive_cmd: object
 
 class PerceptionSystem:
-    """Sistema de percepção usando tofcam.lib - mantém API original"""
+    """Unified perception system using tofcam.lib"""
     
     def __init__(self, camera_manager, depth_estimator, navigator):
         self.camera_manager = camera_manager
@@ -40,166 +56,376 @@ class PerceptionSystem:
         self.navigator = navigator
     
     def process_once(self) -> Optional[PerceptionOutput]:
-        """Processa um frame - API compatível com código original"""
-        # Capturar frame
+        """Process one frame - unified API"""
         frame = self.camera_manager.read_frame()
         if frame is None:
             return None
         
-        # Estimar profundidade
         depth_map = self.depth_estimator.estimate_depth(frame)
-        
-        # Análise de navegação
-        nav_result = self.navigator.navigate(depth_map, NavigationMode.HYBRID)
-        
-        # Criar grids para compatibilidade
-        strategic_grid = self.navigator.zone_mapper.create_strategic_grid(depth_map)
-        reactive_grid = self.navigator.zone_mapper.create_reactive_grid(depth_map)
+        nav_result = self.navigator.navigate(frame, depth_map)
         
         return PerceptionOutput(
-            frame=frame,
-            depth_map=depth_map,
-            strategic_grid=strategic_grid,
-            reactive_grid=reactive_grid,
-            strategic_plan=nav_result.strategic,
-            reactive_cmd=nav_result.reactive
+            frame, depth_map, 
+            nav_result.strategic_grid, nav_result.reactive_grid,
+            nav_result.strategic, nav_result.reactive
         )
 
-def visualize(frame, depth_map, strategic_grid, reactive_grid, strategic_mapper, reactive_mapper):
-    """Visualização com 4 janelas separadas - preserva funcionalidade original"""
-    
-    # Criar renderers
-    depth_renderer = create_depth_renderer()
-    zone_renderer = create_zone_renderer()
-    
-    # 1) Depth em color map
-    depth_color = depth_renderer.render_depth_colormap(depth_map)
-    
-    # 2) Strategic grid sobre depth
-    strategic_img = zone_renderer.render_zone_overlay(
-        depth_color.copy(), strategic_grid, alpha=0.5
-    )
-    
-    # 3) Reactive grid sobre depth  
-    reactive_img = zone_renderer.render_zone_overlay(
-        depth_color.copy(), reactive_grid, alpha=0.5
-    )
-    
-    # 4) Mostrar ou salvar - preserva comportamento original
+def check_display():
+    """Check if X11 display is available"""
     try:
-        cv2.imshow("CAMERA", frame)
-        cv2.imshow("DEPTH", depth_color) 
-        cv2.imshow("STRATEGIC GRID", strategic_img)
-        cv2.imshow("REACTIVE GRID", reactive_img)
-        print("📺 Imagens exibidas")
-    except:
-        print("💾 Salvando imagens...")
-        cv2.imwrite("/tmp/camera.jpg", frame)
-        cv2.imwrite("/tmp/depth.jpg", depth_color)
-        cv2.imwrite("/tmp/strategic.jpg", strategic_img)
-        cv2.imwrite("/tmp/reactive.jpg", reactive_img)
-        print("✅ Salvo em /tmp/")
+        import subprocess
+        display = os.environ.get('DISPLAY', '')
+        if not display:
+            return False
+        result = subprocess.run(['xset', 'q'], capture_output=True, timeout=2)
+        return result.returncode == 0
+    except (subprocess.TimeoutExpired, FileNotFoundError):
+        return False
 
-def main():
-    print("🚀 Iniciando TOFcam usando tofcam.lib...")
-    print("📹 Inicializando componentes...")
+# =============================================================================
+# Desktop Mode
+# =============================================================================
+
+class DesktopMode:
+    """4-window desktop visualization mode"""
     
-    try:
-        # Criar componentes usando a biblioteca
+    def __init__(self):
+        self.config = TOFConfig()
+        self.perception = None
+        self.render_pipeline = None
+        self.zone_renderer = None
+        self.depth_renderer = None
+        
+    def initialize(self):
+        """Initialize desktop components"""
+        logger.info("🖥️ Inicializando modo Desktop...")
+        
         camera_manager = create_camera_manager()
         depth_estimator = create_depth_estimator()
+        navigator = create_navigator(self.config.navigation)
         
-        # Configurar navegação com parâmetros originais
-        nav_config = NavigationConfig(
-            strategic_grid_size=(24, 32),  # grid_h=24, grid_w=32
-            reactive_grid_size=(12, 16),   # grid_h=12, grid_w=16
-            warn_threshold=0.35,           # strategic: 0.35, reactive: 0.25
-            emergency_threshold=0.20,      # strategic: 0.20, reactive: 0.12
-            strategic_roi=(0.10, 1.00, 0.10, 0.90),  # ROI original strategic
-            reactive_roi=(0.50, 1.00, 0.25, 0.75)    # ROI original reactive
-        )
-        navigator = create_navigator(nav_config)
-        
-        print("✅ Componentes criados com sucesso")
-        
-        # Configurar câmera
-        camera_config = CameraConfig(index=0, use_test_image=False)
-        
-        if not camera_manager.add_camera(camera_config):
-            print("⚠️ Câmera não encontrada, usando modo de teste")
-            camera_config.use_test_image = True
+        # Try to discover and use available cameras
+        available_cameras = discover_cameras()
+        if available_cameras:
+            # Use first available camera
+            camera_config = CameraConfig(index=available_cameras[0])
             camera_manager.add_camera(camera_config)
+        else:
+            # Fallback to test mode
+            logger.warning("No cameras found, using test mode")
+            test_config = CameraConfig(index=0, use_test_image=True)
+            camera_manager.add_camera(test_config)
         
-        # Criar sistema de percepção - preserva API original
-        system = PerceptionSystem(camera_manager, depth_estimator, navigator)
+        self.perception = PerceptionSystem(camera_manager, depth_estimator, navigator)
+        self.render_pipeline = create_render_pipeline()
+        self.zone_renderer = create_zone_renderer()
+        self.depth_renderer = create_depth_renderer()
         
-        print("▶️ Iniciando loop principal - Pressione ESC para sair")
+        # Setup windows
+        window_names = ['Camera', 'Depth', 'Strategic', 'Reactive']
+        for i, name in enumerate(window_names):
+            cv2.namedWindow(name, cv2.WINDOW_NORMAL)
+            cv2.resizeWindow(name, 480, 360)
+            x, y = (i % 2) * 500, (i // 2) * 400
+            cv2.moveWindow(name, x, y)
         
-        frame_count = 0
-        start_time = time.time()
+        logger.info("✅ Desktop mode initialized")
         
-        while True:
-            frame_count += 1
-            if frame_count % 30 == 0:  # A cada 30 frames
-                elapsed = time.time() - start_time
-                fps = frame_count / elapsed
-                print(f"📊 Processando frame {frame_count}... FPS: {fps:.1f}")
+    def run(self):
+        """Run desktop interface"""
+        if not check_display():
+            logger.error("❌ Sem display X11 disponível para modo desktop")
+            logger.info("💡 Use: python main.py --web")
+            return
+            
+        self.initialize()
+        
+        logger.info("🖥️ Desktop interface ativa - Pressione 'q' para sair")
+        
+        try:
+            while True:
+                output = self.perception.process_once()
+                if output is None:
+                    time.sleep(0.1)
+                    continue
                 
-            # Processar frame - API original
-            out = system.process_once()
-            if out is None:
-                print("⚠️ Não foi possível capturar frame")
-                continue
-
-            # Visualizar - função original preservada
-            visualize(
-                frame=out.frame,
-                depth_map=out.depth_map,
-                strategic_grid=out.strategic_grid,
-                reactive_grid=out.reactive_grid,
-                strategic_mapper=None,  # Não usado nos renderers
-                reactive_mapper=None    # Não usado nos renderers
-            )
-
-            # Imprimir parâmetros de controle - output original preservado
-            if out.strategic_plan and out.reactive_cmd:
-                print(
-                    f"STRATEGIC yaw={out.strategic_plan.target_yaw_delta:.3f}, "
-                    f"conf={out.strategic_plan.confidence:.2f}"
-                )
-                print(
-                    f"REACTIVE yaw={out.reactive_cmd.yaw_delta:.3f}, "
-                    f"fwd={out.reactive_cmd.forward_scale:.2f}, "
-                    f"emergency={out.reactive_cmd.emergency_brake}"
-                )
-
-            # Testa se tem display para o waitKey - preserva comportamento
-            try:
-                if cv2.waitKey(1) & 0xFF == 27:
+                # Render visualizations
+                depth_vis = self.depth_renderer.render(output.depth_map)
+                strategic_vis = self.zone_renderer.render_strategic(output.strategic_grid)
+                reactive_vis = self.zone_renderer.render_reactive(output.reactive_grid)
+                
+                # Display windows
+                cv2.imshow('Camera', output.frame)
+                cv2.imshow('Depth', depth_vis)
+                cv2.imshow('Strategic', strategic_vis)
+                cv2.imshow('Reactive', reactive_vis)
+                
+                if cv2.waitKey(1) & 0xFF == ord('q'):
                     break
-            except:
-                # Sem display, roda apenas alguns frames para teste
-                if frame_count >= 3:
-                    print("🏁 Teste concluído (sem display)")
-                    break
-
-    except KeyboardInterrupt:
-        print("\n🛑 Interrompido pelo usuário")
-    except Exception as e:
-        print(f"❌ Erro: {e}")
-        import traceback
-        traceback.print_exc()
-    finally:
-        # Limpeza - preserva comportamento original
-        try:
-            camera_manager.close_all()
-        except:
+                    
+        except KeyboardInterrupt:
             pass
-        try:
+        finally:
             cv2.destroyAllWindows()
-        except:
-            pass  # Sem display
-        print("✅ Finalizado")
+            logger.info("🛑 Desktop mode stopped")
 
-if __name__ == "__main__":
-    main()
+# =============================================================================
+# Web Mode
+# =============================================================================
+
+class WebMode:
+    """Browser-based streaming interface mode"""
+    
+    def __init__(self):
+        self.config = TOFConfig()
+        self.running = False
+        self.web_interface = None
+        
+    def initialize(self):
+        """Initialize web components"""
+        logger.info("🌐 Inicializando modo Web...")
+        
+        camera_manager = create_camera_manager()
+        depth_estimator = create_depth_estimator()
+        navigator = create_navigator(self.config.navigation)
+        render_pipeline = create_render_pipeline()
+        
+        # Try to discover and use available cameras
+        available_cameras = discover_cameras()
+        if available_cameras:
+            # Use first available camera
+            camera_config = CameraConfig(index=available_cameras[0])
+            camera_manager.add_camera(camera_config)
+        else:
+            # Fallback to test mode
+            logger.warning("No cameras found, using test mode")
+            test_config = CameraConfig(index=0, use_test_image=True)
+            camera_manager.add_camera(test_config)
+        
+        self.web_interface = WebIntegration(port=8080)
+        web_info = self.web_interface.start()
+        logger.info(f"Interface web disponível em: {web_info['url']}")
+        
+        self.perception = PerceptionSystem(camera_manager, depth_estimator, navigator)
+        self.render_pipeline = render_pipeline
+        
+        logger.info("✅ Web mode initialized")
+    
+    def run(self):
+        """Run web interface"""
+        self.initialize()
+        
+        logger.info("🌐 Servidor web iniciado!")
+        logger.info("📱 Acesse a interface web para visualizar")
+        logger.info("🛑 Pressione Ctrl+C para parar")
+        
+        self.running = True
+        frame_count = 0
+        last_fps_time = time.time()
+        
+        try:
+            while self.running:
+                output = self.perception.process_once()
+                if output is None:
+                    time.sleep(0.1)
+                    continue
+                
+                frame_count += 1
+                current_time = time.time()
+                
+                if current_time - last_fps_time >= 5:
+                    fps = frame_count / (current_time - last_fps_time)
+                    logger.info(f"Processado {frame_count} frames, FPS: {fps:.1f}")
+                    frame_count = 0
+                    last_fps_time = current_time
+                    
+        except KeyboardInterrupt:
+            logger.info("Aplicação interrompida pelo usuário")
+        finally:
+            self.shutdown()
+    
+    def shutdown(self):
+        """Shutdown web interface"""
+        self.running = False
+        if self.web_interface:
+            self.web_interface.stop()
+        logger.info("🛑 Web mode stopped")
+
+# =============================================================================
+# Analysis Mode
+# =============================================================================
+
+class AnalysisMode:
+    """Background analysis with file output mode"""
+    
+    def __init__(self):
+        self.config = TOFConfig()
+        self.output_dir = Path(f"analysis_output_{datetime.now().strftime('%Y%m%d_%H%M%S')}")
+        self.frame_count = 0
+        
+    def initialize(self):
+        """Initialize analysis components"""
+        logger.info("📊 Inicializando modo Analysis...")
+        
+        self.output_dir.mkdir(exist_ok=True)
+        logger.info(f"💾 Salvando resultados em: {self.output_dir}")
+        
+        camera_manager = create_camera_manager()
+        depth_estimator = create_depth_estimator()
+        navigator = create_navigator(self.config.navigation)
+        
+        # Try to discover and use available cameras
+        available_cameras = discover_cameras()
+        if available_cameras:
+            # Use first available camera
+            camera_config = CameraConfig(index=available_cameras[0])
+            camera_manager.add_camera(camera_config)
+        else:
+            # Fallback to test mode
+            logger.warning("No cameras found, using test mode")
+            test_config = CameraConfig(index=0, use_test_image=True)
+            camera_manager.add_camera(test_config)
+        
+        self.perception = PerceptionSystem(camera_manager, depth_estimator, navigator)
+        self.render_pipeline = create_render_pipeline()
+        self.zone_renderer = create_zone_renderer()
+        self.depth_renderer = create_depth_renderer()
+        
+        logger.info("✅ Analysis mode initialized")
+    
+    def run(self):
+        """Run background analysis"""
+        self.initialize()
+        
+        logger.info("📊 Análise em background iniciada")
+        logger.info("💾 Salvando frames processados")
+        logger.info("🛑 Pressione Ctrl+C para parar")
+        
+        try:
+            while True:
+                output = self.perception.process_once()
+                if output is None:
+                    time.sleep(0.1)
+                    continue
+                
+                self._save_analysis_frame(output)
+                self.frame_count += 1
+                
+                if self.frame_count % 30 == 0:
+                    logger.info(f"📊 Processados {self.frame_count} frames")
+                    
+        except KeyboardInterrupt:
+            logger.info("Análise interrompida pelo usuário")
+        finally:
+            logger.info(f"📊 Total de frames processados: {self.frame_count}")
+            logger.info(f"💾 Resultados salvos em: {self.output_dir}")
+    
+    def _save_analysis_frame(self, output: PerceptionOutput):
+        """Save analysis results to files"""
+        frame_dir = self.output_dir / f"frame_{self.frame_count:06d}"
+        frame_dir.mkdir(exist_ok=True)
+        
+        # Save images
+        cv2.imwrite(str(frame_dir / "camera.jpg"), output.frame)
+        
+        depth_vis = self.depth_renderer.render(output.depth_map)
+        cv2.imwrite(str(frame_dir / "depth.jpg"), depth_vis)
+        
+        strategic_vis = self.zone_renderer.render_strategic(output.strategic_grid)
+        cv2.imwrite(str(frame_dir / "strategic.jpg"), strategic_vis)
+        
+        reactive_vis = self.zone_renderer.render_reactive(output.reactive_grid)
+        cv2.imwrite(str(frame_dir / "reactive.jpg"), reactive_vis)
+        
+        # Save metadata (simplified)
+        metadata = {
+            "frame": self.frame_count,
+            "timestamp": datetime.now().isoformat(),
+            "strategic_angle": getattr(output.strategic_plan, 'optimal_yaw', 0),
+            "reactive_urgency": getattr(output.reactive_cmd, 'urgency', 0)
+        }
+        
+        import json
+        with open(frame_dir / "metadata.json", 'w') as f:
+            json.dump(metadata, f, indent=2)
+
+# =============================================================================
+# Interactive Mode
+# =============================================================================
+
+def interactive_mode():
+    """Interactive mode selection"""
+    print("\n🚀 TOFcam - Professional Analysis System")
+    print("=" * 50)
+    print("Escolha o modo de operação:")
+    print()
+    print("1. 🖥️  Desktop - Interface com 4 janelas")
+    print("2. 🌐 Web - Interface no navegador") 
+    print("3. 📊 Analysis - Processamento em background")
+    print("4. ❌ Sair")
+    print()
+    
+    while True:
+        try:
+            choice = input("👉 Sua escolha (1-4): ").strip()
+            
+            if choice == '1':
+                return DesktopMode()
+            elif choice == '2':
+                return WebMode()
+            elif choice == '3':
+                return AnalysisMode()
+            elif choice == '4':
+                print("👋 Saindo...")
+                return None
+            else:
+                print("❌ Opção inválida. Escolha 1-4.")
+                
+        except KeyboardInterrupt:
+            print("\n👋 Saindo...")
+            return None
+
+# =============================================================================
+# Main Entry Point
+# =============================================================================
+
+def main():
+    """Main entry point with argument parsing"""
+    parser = argparse.ArgumentParser(
+        description='TOFcam - Professional Time-of-Flight Analysis',
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+        epilog=__doc__
+    )
+    
+    parser.add_argument('--desktop', action='store_true',
+                       help='Run desktop interface (4 windows)')
+    parser.add_argument('--web', action='store_true', 
+                       help='Run web interface')
+    parser.add_argument('--analysis', action='store_true',
+                       help='Run background analysis')
+    
+    args = parser.parse_args()
+    
+    # Determine mode
+    mode = None
+    if args.desktop:
+        mode = DesktopMode()
+    elif args.web:
+        mode = WebMode()
+    elif args.analysis:
+        mode = AnalysisMode()
+    else:
+        mode = interactive_mode()
+    
+    # Run selected mode
+    if mode:
+        try:
+            mode.run()
+        except Exception as e:
+            logger.error(f"❌ Erro na execução: {e}")
+            return 1
+    
+    return 0
+
+if __name__ == '__main__':
+    sys.exit(main())

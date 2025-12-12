@@ -12,10 +12,16 @@ import base64
 from io import BytesIO
 from PIL import Image
 
-# Imports locais
-from .tof_types import *
-from .nav import ZoneMapper, StrategicPlanner, ReactiveAvoider
-from .depth import DepthEstimator
+# Imports locais - usando imports absolutos
+try:
+    from tofcam.tof_types import *
+    from tofcam.nav import ZoneMapper, StrategicPlanner, ReactiveAvoider
+    from tofcam.depth import DepthEstimator
+except ImportError:
+    # Fallback para imports locais
+    from tof_types import *
+    from nav import ZoneMapper, StrategicPlanner, ReactiveAvoider
+    from depth import DepthEstimator
 
 class AnalysisConfig:
     """Configuração para análise"""

@@ -1,6 +1,9 @@
 import numpy as np
 from typing import Tuple
-from .tof_types import ZoneGrid, ZoneCell, ZoneStatus, StrategicPlan, ReactiveCommand, CellState
+try:
+    from tofcam.tof_types import ZoneGrid, ZoneCell, ZoneStatus, StrategicPlan, ReactiveCommand, CellState
+except ImportError:
+    from tof_types import ZoneGrid, ZoneCell, ZoneStatus, StrategicPlan, ReactiveCommand, CellState
 
 class ZoneMapper:
     def __init__(

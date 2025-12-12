@@ -13,12 +13,13 @@
 # 1. Ativar ambiente
 conda activate opencv
 
-# 2. Executar sistema completo
+# 2. Executar TOFcam (modo interativo)
 python main.py
 
-# 3. Interface web (alternativa)
-python run.py
-# → Acesse http://localhost:8081
+# 3. Ou usar modo específico:
+python main.py --desktop    # Interface 4 janelas
+python main.py --web       # Interface navegador  
+python main.py --analysis  # Processamento background
 ```
 
 **🔗 Links Rápidos:** [📖 Documentação Completa](docs/) | [⚡ Como Usar](docs/quick-start.md) | [🧪 Demos](demos/) | [⚙️ Setup](docs/installation.md)
