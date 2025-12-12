@@ -6,6 +6,20 @@ __pycache__/
 # C extensions
 *.so
 
+# TOFcam specific
+*_old.*
+*_backup.*
+*_temp.*
+*.bak
+*.tmp
+*~
+*.swp
+output_images/*.jpg
+output_images/*.png
+demos/outputs/*/
+demos/library/demo_output/*/
+demos/library/demo_simple/*/
+
 # Distribution / packaging
 .Python
 build/
