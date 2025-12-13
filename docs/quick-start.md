@@ -106,7 +106,7 @@ python setup_display.py  # Escolher opção 2 (teste básico)
 | `python main.py` | 4 janelas desktop | Análise visual interativa |
 | `python run.py` | Interface web | Demos, apresentações |
 | `python demos/run_demos.py` | Menu de demos | Exploração, aprendizado |
-| `python main_analyzer.py` | Análise + salvamento | Coleta de dados, pesquisa |
+| `python main.py --analysis` | Análise + salvamento | Coleta de dados, pesquisa |
 | `python setup_display.py` | Config display | Problemas de visualização |
 
 ---

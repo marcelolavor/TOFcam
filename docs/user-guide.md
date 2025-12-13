@@ -73,7 +73,7 @@ python run.py
 
 ### **3. Análise com Salvamento**
 ```bash
-python main_analyzer.py
+python main.py --analysis
 ```
 
 **O que faz:**
@@ -251,7 +251,7 @@ output_images/
 ### **Sessões de Análise**
 ```bash
 # Exemplo de sessão
-python main_analyzer_lib.py
+python main.py --analysis
 
 # Menu de opções:
 # 1. Sessão interativa (controle manual)

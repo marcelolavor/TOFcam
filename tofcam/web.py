@@ -1,7 +1,27 @@
 #!/usr/bin/env python3
 """
-Visualizador web para TOFcam - Alternativa para VS Code
-Cria um servidor web local para visualizar imagens em tempo real
+TOFcam Web Viewer - Interface Web Standalone
+===========================================
+
+Servidor web moderno para visualização de profundidade em tempo real com MiDaS neural network.
+
+Features:
+- 🧠 MiDaS Neural Network para estimação de profundidade
+- 🎨 Esquema de cores intuitivo (vermelho=próximo, verde=distante)
+- ⚙️ Controles em tempo real (MiDaS 87%, Gradiente 58% por padrão)
+- 📹 Multi-câmera com detecção automática
+- 🖼️ Streaming MJPEG otimizado
+
+Usage:
+    conda activate opencv          # OBRIGATÓRIO
+    python tofcam/web.py          # Servidor standalone
+    python main.py --web         # Via main unificado
+
+URL: http://localhost:8082
+
+Requirements:
+- Ambiente conda 'opencv' com PyTorch instalado
+- Câmera conectada (detecção automática)
 """
 
 import cv2

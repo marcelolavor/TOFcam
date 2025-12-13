@@ -13,7 +13,11 @@ Usage:
     python main.py --desktop         # Desktop interface
     python main.py --web             # Web interface
     python main.py --analysis        # Analysis mode
+    python tofcam/web.py             # Direct web server
     python main.py --help            # Show this help
+
+Requirements:
+    conda activate opencv            # Required environment
 """
 
 import argparse

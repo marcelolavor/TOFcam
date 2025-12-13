@@ -20,6 +20,9 @@ python main.py
 python main.py --desktop    # Interface 4 janelas
 python main.py --web       # Interface navegador  
 python main.py --analysis  # Processamento background
+
+# 4. Ou diretamente o servidor web:
+python tofcam/web.py       # Servidor web standalone
 ```
 
 **🔗 Links Rápidos:** [📖 Documentação Completa](docs/) | [⚡ Como Usar](docs/quick-start.md) | [🧪 Demos](demos/) | [⚙️ Setup](docs/installation.md)
@@ -68,19 +71,21 @@ python main.py --analysis  # Processamento background
 ### Interface Desktop
 ```bash
 # Sistema completo com 4 janelas
-python main.py
-```
-
-### Análise com Persistência
-```bash
-# Análise interativa com salvamento
-python main_analyzer.py
+python main.py --desktop
 ```
 
 ### Interface Web
 ```bash
 # Servidor web com streaming
-python run.py
+python main.py --web
+# Ou diretamente:
+python tofcam/web.py
+```
+
+### Análise Background
+```bash
+# Processamento background com salvamento
+python main.py --analysis
 ```
 
 ### Demonstrações
@@ -96,8 +101,10 @@ python demos/run_demos.py
 ```
 TOFcam/
 ├── 🚀 Aplicações Principais
-│   ├── main.py              # Sistema completo (4 janelas)
-│   ├── main_analyzer.py     # Análise com salvamento
+│   ├── main.py              # Sistema unificado (desktop/web/analysis)
+│   └── tofcam/
+│       ├── web.py           # Servidor web standalone
+│       └── lib/             # Biblioteca core
 │   ├── run.py               # Interface web
 │   └── setup_display.py     # Configurador de display
 │
@@ -133,7 +140,7 @@ TOFcam/
 3. Execute `python tests/run_tests.py`
 
 ### 🔬 **Pesquisador?**
-1. Use `python main_analyzer.py` para coleta
+1. Use `python main.py --analysis` para coleta
 2. Veja [User Guide](docs/user-guide.md) para análise
 3. Configure [Display Setup](docs/display-setup.md) se necessário
 

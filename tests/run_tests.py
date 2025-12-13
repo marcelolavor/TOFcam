@@ -34,7 +34,7 @@ class TestManager:
             ],
             "🧪 Biblioteca": [
                 ("../demos/library/demo_lib.py", "Demo biblioteca centralizada", "Testar diferentes configurações"),
-                ("../main_analyzer_lib.py", "Analyzer biblioteca", "Teste análise com persistência"),
+                ("../main.py", "Sistema unificado", "Teste entry point principal"),
                 ("../web_viewer_lib.py", "Web viewer biblioteca", "Teste interface web refatorada"),
             ],
         }
