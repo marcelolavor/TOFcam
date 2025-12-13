@@ -231,3 +231,25 @@ cython_debug/
 marimo/_static/
 marimo/_lsp/
 __marimo__/
+
+# Cleanup - arquivos temporários e backups
+*.backup
+*.orig
+*.tmp
+*~
+.DS_Store
+
+# Python cache
+__pycache__/
+*.py[cod]
+*$py.class
+
+# Outputs de análise
+demos/*/cam*_*/
+demos/outputs/
+**/demo_output/
+**/demo_simple/
+
+# Logs
+*.log
+
