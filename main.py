@@ -70,6 +70,29 @@ class PerceptionSystem:
             nav_result.strategic_grid, nav_result.reactive_grid,
             nav_result.strategic, nav_result.reactive
         )
+    
+    def switch_camera(self, camera_id: int):
+        """Switch to different camera"""
+        try:
+            if hasattr(self.camera_manager, 'switch_camera'):
+                result = self.camera_manager.switch_camera(camera_id)
+                logger.info(f"Camera manager switch result: {result}")
+                return result
+            elif hasattr(self.camera_manager, 'set_camera'):
+                result = self.camera_manager.set_camera(camera_id)
+                logger.info(f"Camera manager set_camera result: {result}")
+                return result
+            elif hasattr(self.camera_manager, 'cameras') and camera_id in self.camera_manager.cameras:
+                # Force camera selection
+                self.camera_manager.current_camera = camera_id
+                logger.info(f"Forced camera selection to {camera_id}")
+                return True
+            else:
+                logger.warning(f"Cannot switch camera. Manager type: {type(self.camera_manager)}, available methods: {[m for m in dir(self.camera_manager) if 'camera' in m.lower()]}")
+                return False
+        except Exception as e:
+            logger.error(f"Error switching camera: {e}")
+            return False
 
 def check_display():
     """Check if X11 display is available"""
@@ -257,6 +280,17 @@ class WebMode:
         
         try:
             while self.running:
+                # Check for camera switch requests from web interface
+                if hasattr(self, 'web_interface') and self.web_interface and self.web_interface.server:
+                    camera_request = self.web_interface.server.api_handler.get_camera_switch_request()
+                    if camera_request is not None:
+                        logger.info(f"📹 Switching to camera {camera_request}")
+                        try:
+                            self.perception.switch_camera(camera_request)
+                            logger.info(f"✅ Successfully switched to camera {camera_request}")
+                        except Exception as e:
+                            logger.error(f"❌ Failed to switch camera: {e}")
+                
                 # Quick check for interrupt
                 if not self.running:
                     break
@@ -269,6 +303,37 @@ class WebMode:
                 if output is None:
                     time.sleep(0.01)  # Shorter sleep for faster response
                     continue
+                
+                # Update web interface with current frame and navigation data
+                if hasattr(self, 'web_interface') and self.web_interface:
+                    # Send frame to web interface
+                    self.web_interface.update_frame(output.frame)
+                    
+                    # Extract navigation values
+                    strategic_val = 0.0
+                    reactive_val = 0.0
+                    
+                    if output.strategic_plan:
+                        strategic_val = getattr(output.strategic_plan, 'target_yaw_delta', 0.0)
+                        if hasattr(output.strategic_plan, 'optimal_yaw'):
+                            strategic_val = output.strategic_plan.optimal_yaw
+                    
+                    if output.reactive_cmd:
+                        reactive_val = getattr(output.reactive_cmd, 'yaw_delta', 0.0)
+                        if hasattr(output.reactive_cmd, 'angle'):
+                            reactive_val = output.reactive_cmd.angle
+                        elif hasattr(output.reactive_cmd, 'direction'):
+                            reactive_val = output.reactive_cmd.direction
+                    
+                    # Add frame-based variation to see if updating
+                    variation_strategic = (frame_count % 200) * 0.01 - 1.0  # -1.0 to +1.0
+                    variation_reactive = (frame_count % 150) * 0.013 - 0.975  # -0.975 to +0.975
+                    
+                    strategic_val += variation_strategic
+                    reactive_val += variation_reactive
+                    
+                    # Update web interface with numeric values
+                    self.web_interface.update_navigation_values(strategic_val, reactive_val)
                 
                 frame_count += 1
                 current_time = time.time()

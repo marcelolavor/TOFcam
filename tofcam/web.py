@@ -23,25 +23,20 @@ USE_DEPTH_ESTIMATION = True
 USE_MAPPING = True
 
 try:
-    from ..camera import CameraSource
+    from tofcam.lib.camera import CameraSource
+    from tofcam.lib.config import CameraConfig
     print("✅ Camera carregado")
-except ImportError:
-    try:
-        import sys
-        import os
-        sys.path.insert(0, os.path.dirname(os.path.dirname(__file__)))
-        from camera import CameraSource
-        print("✅ Camera carregado")
-    except ImportError as e:
-        print(f"⚠️ Camera não disponível: {e}")
-        CameraSource = None
+except ImportError as e:
+    print(f"⚠️ Camera não disponível: {e}")
+    CameraSource = None
+    CameraConfig = None
 
 try:
-    from ..depth_estimator import MidasDepthEstimator
+    from tofcam.lib.depth import MidasDepthEstimator
     print("✅ Depth estimator carregado")
 except ImportError:
     try:
-        from depth_estimator import MidasDepthEstimator
+        from tofcam.lib.depth import MidasDepthEstimator
         print("✅ Depth estimator carregado")
     except ImportError as e:
         print(f"⚠️ Depth estimator não disponível: {e}")
@@ -49,11 +44,11 @@ except ImportError:
         USE_DEPTH_ESTIMATION = False
 
 try:
-    from ..mapping import StrategicPlanner, ReactiveAvoider
+    from tofcam.lib.navigation import StrategicPlanner, ReactiveAvoider
     print("✅ Mappers carregados")
 except ImportError:
     try:
-        from mapping import StrategicPlanner, ReactiveAvoider
+        from tofcam.lib.navigation import StrategicPlanner, ReactiveAvoider
         print("✅ Mappers carregados")
     except ImportError as e:
         print(f"⚠️ Mapping não disponível: {e}")
@@ -61,19 +56,28 @@ except ImportError:
         USE_MAPPING = False
 
 try:
-    from ..view import depth_to_color, draw_yaw_arrow
+    from tofcam.lib.visualization import ColorUtils
     print("✅ View carregado")
 except ImportError:
     try:
-        from view import depth_to_color, draw_yaw_arrow
+        from tofcam.lib.visualization import ColorUtils
         print("✅ View carregado")
     except ImportError as e:
         print(f"⚠️ View não disponível: {e}")
         def depth_to_color(depth):
-            # Fallback: converter depth para colormap
-            import cv2
-            d = (depth * 255).astype(np.uint8)
-            return cv2.applyColorMap(d, cv2.COLORMAP_JET)
+            # Usar esquema intuitivo: Vermelho=Próximo, Verde=Longe
+            try:
+                return ColorUtils.depth_to_color(depth)
+            except:
+                # Fallback personalizado com esquema vermelho->verde
+                import cv2
+                # Criar colormap customizado
+                d = (depth * 255).astype(np.uint8)
+                # Inverter JET para que vermelho seja próximo
+                colored = cv2.applyColorMap(255 - d, cv2.COLORMAP_JET)
+                # Ajustar para nosso padrão: trocar azul por vermelho para proximidade
+                colored[:,:,[0,2]] = colored[:,:,[2,0]]  # Trocar B e R
+                return colored
         def draw_yaw_arrow(img, angle):
             return img
 
@@ -98,7 +102,7 @@ class TOFcamWebViewer:
         # Controles para técnica híbrida de profundidade
         self.depth_mode = "hybrid"  # "midas", "gradient", "hybrid"
         self.midas_weight = 0.87  # Peso do MiDaS (0.0 a 1.0) - 87% padrão
-        self.gradient_weight = 0.29  # Peso do gradiente (0.0 a 1.0) - 29% padrão
+        self.gradient_weight = 0.58  # Peso do gradiente (0.0 a 1.0) - 58% padrão
         
     def find_available_cameras(self):
         """Detectar câmeras disponíveis."""
@@ -144,12 +148,21 @@ class TOFcamWebViewer:
             
         print(f"📹 Inicializando câmera {self.current_camera}...")
         
-        if CameraSource:
-            self.camera_source = CameraSource(self.current_camera)
-            if not self.camera_source.open():
-                raise Exception(f"Falha ao abrir câmera {self.current_camera}")
+        if CameraSource and CameraConfig:
+            try:
+                print(f"🔧 Criando CameraConfig para câmera {self.current_camera}...")
+                config = CameraConfig(index=self.current_camera)
+                print(f"🔧 Criando CameraSource com config...")
+                self.camera_source = CameraSource(config)
+                print(f"🔧 CameraSource criado, tentando abrir...")
+                if not self.camera_source.open():
+                    raise Exception(f"Falha ao abrir câmera {self.current_camera}")
+            except Exception as e:
+                print(f"❌ Erro na criação/abertura do CameraSource: {e}")
+                raise
         else:
             # Fallback para OpenCV direto
+            print(f"🔧 Usando fallback cv2.VideoCapture({self.current_camera})...")
             self.camera_source = cv2.VideoCapture(self.current_camera)
             if not self.camera_source.isOpened():
                 raise Exception(f"Falha ao abrir câmera {self.current_camera}")
@@ -301,6 +314,10 @@ class TOFcamWebViewer:
         if not self.camera_source:
             return None
             
+        # Inicializar variáveis que serão usadas ao longo da função
+        depth_color = None
+        frame = None
+            
         # Ler frame com múltiplas tentativas para câmeras USB problemáticas
         frame = None
         max_attempts = 3
@@ -333,56 +350,57 @@ class TOFcamWebViewer:
         frame = cv2.resize(frame, (640, 480))
         
         # Análise de profundidade com técnica híbrida configurável
-        if self.depth_estimator:
-            try:
-                depth_map = None
-                
-                # Gerar depth map do MiDaS se necessário
-                if self.depth_mode in ["midas", "hybrid"] and self.midas_weight > 0:
+        try:
+            # Sempre gerar múltiplos depth maps para permitir mistura visual
+            gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
+            
+            # 1. Depth map por gradiente Sobel (bordas)
+            grad_x = cv2.Sobel(gray, cv2.CV_64F, 1, 0, ksize=3)
+            grad_y = cv2.Sobel(gray, cv2.CV_64F, 0, 1, ksize=3)
+            gradient = np.sqrt(grad_x**2 + grad_y**2)
+            gradient = gradient / (gradient.max() + 1e-8)
+            depth_gradient = 1.0 - gradient  # Bordas = próximo
+            
+            # 2. Depth map por luminosidade (simulação MiDaS quando não disponível)
+            # Áreas mais escuras = mais próximas (como MiDaS)
+            blurred = cv2.GaussianBlur(gray, (9, 9), 0)
+            depth_luminosity = (255 - blurred).astype(np.float32) / 255.0
+            
+            # 3. Usar MiDaS real se disponível
+            depth_midas = None
+            if self.depth_estimator:
+                try:
                     depth_midas = self.depth_estimator.estimate_depth(frame)
                     depth_midas = depth_midas.astype(np.float32)
-                    # Normalizar MiDaS para 0-1
                     if depth_midas.max() > 1.0:
                         depth_midas = depth_midas / depth_midas.max()
-                else:
+                except Exception as e:
+                    print(f"⚠️ Erro no MiDaS: {e}")
                     depth_midas = None
+            
+            # Combinar depth maps conforme modo e pesos
+            if self.depth_mode == "gradient":
+                depth_map = depth_gradient
+            elif self.depth_mode == "midas":
+                depth_map = depth_midas if depth_midas is not None else depth_luminosity
+            elif self.depth_mode == "hybrid":
+                # Usar MiDaS real se disponível, senão usar luminosidade como substituto
+                primary_depth = depth_midas if depth_midas is not None else depth_luminosity
                 
-                # Gerar depth map por gradiente se necessário
-                if self.depth_mode in ["gradient", "hybrid"] and self.gradient_weight > 0:
-                    # Converter para escala de cinza e aplicar gradiente Sobel
-                    gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
-                    grad_x = cv2.Sobel(gray, cv2.CV_64F, 1, 0, ksize=3)
-                    grad_y = cv2.Sobel(gray, cv2.CV_64F, 0, 1, ksize=3)
-                    gradient = np.sqrt(grad_x**2 + grad_y**2)
-                    # Normalizar gradiente para 0-1
-                    gradient = gradient / (gradient.max() + 1e-8)
-                    # Converter gradiente para estimativa de profundidade
-                    depth_gradient = 1.0 - gradient  # Bordas = próximo, suave = longe
+                # Normalizar pesos
+                total_weight = self.midas_weight + self.gradient_weight
+                if total_weight > 0:
+                    weight_primary = self.midas_weight / total_weight
+                    weight_gradient = self.gradient_weight / total_weight
                 else:
-                    depth_gradient = None
+                    weight_primary = 0.5
+                    weight_gradient = 0.5
                 
-                # Combinar depth maps conforme modo e pesos
-                if self.depth_mode == "midas" and depth_midas is not None:
-                    depth_map = depth_midas
-                elif self.depth_mode == "gradient" and depth_gradient is not None:
-                    depth_map = depth_gradient
-                elif self.depth_mode == "hybrid":
-                    if depth_midas is not None and depth_gradient is not None:
-                        # Mistura ponderada correta
-                        depth_map = (depth_midas * self.midas_weight + 
-                                   depth_gradient * self.gradient_weight)
-                        # Normalizar resultado final
-                        depth_map = depth_map / (self.midas_weight + self.gradient_weight)
-                    elif depth_midas is not None:
-                        depth_map = depth_midas
-                    elif depth_gradient is not None:
-                        depth_map = depth_gradient
-                
-                # Se ainda não temos depth map, fazer fallback
-                if depth_map is None:
-                    gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
-                    blurred = cv2.GaussianBlur(gray, (5, 5), 0)
-                    depth_map = (255 - blurred).astype(np.float32) / 255.0
+                # Combinar com pesos visíveis
+                depth_map = (primary_depth * weight_primary + 
+                           depth_gradient * weight_gradient)
+            else:
+                depth_map = depth_gradient  # Fallback
                 
                 depth_normalized = depth_map
                 
@@ -402,20 +420,19 @@ class TOFcamWebViewer:
                     
                     # Inverter para que maior distância = valor mais alto = cor mais distante (preto)
                     # MiDaS: valores altos = longe, valores baixos = perto
-                    # Nossa escala: 0 = perto (amarelo), 1 = longe (preto)
+                    # Nossa escala: 0 = perto (vermelho), 1 = longe (preto)
                     depth_norm = 1.0 - depth_norm
                     
                     # Expandir contraste com mapeamento não-linear para melhor distribuição
                     contrast_factor = 1.8  # Fator ajustado para melhor distribuição
                     depth_enhanced = np.power(depth_norm, 1.0 / contrast_factor)
                     
-                    # Mapear para faixa de cores com mais variação no meio
-                    # 0.0 -> Amarelo claro (255, 255, 150) - MAIS PRÓXIMO
-                    # 0.2 -> Verde-amarelo (150, 255, 100)  
-                    # 0.4 -> Verde-azul (0, 200, 200) - PONTO MÉDIO
-                    # 0.6 -> Azul médio (0, 100, 255)
-                    # 0.8 -> Azul escuro (0, 0, 120)
-                    # 1.0 -> Preto puro (0, 0, 0) - MAIS DISTANTE
+                    # Mapear para esquema de cores INTUITIVO: Vermelho->Amarelo->Verde->Preto
+                    # 0.0 -> Vermelho intenso (255, 0, 0) - PERIGO/MUITO PRÓXIMO
+                    # 0.25 -> Vermelho-laranja (255, 128, 0) - ATENÇÃO/PRÓXIMO  
+                    # 0.5 -> Amarelo (255, 255, 0) - CUIDADO/MÉDIO
+                    # 0.75 -> Verde (0, 255, 0) - SEGURO/LONGE
+                    # 1.0 -> Preto (0, 0, 0) - MUITO LONGE/IRRELEVANTE
                     
                     height, width = depth_enhanced.shape
                     colored = np.zeros((height, width, 3), dtype=np.uint8)
@@ -424,69 +441,65 @@ class TOFcamWebViewer:
                         for j in range(width):
                             val = depth_enhanced[i, j]
                             
-                            if val <= 0.2:  # Amarelo claro -> Verde-amarelo (PRÓXIMO)
-                                ratio = val / 0.2
+                            if val <= 0.25:  # Vermelho intenso -> Vermelho-laranja (PERIGO)
+                                ratio = val / 0.25
                                 colored[i, j] = [
-                                    int(255 - 105 * ratio),  # R: 255->150
-                                    255,                     # G: mantém 255
-                                    int(150 - 50 * ratio)    # B: 150->100
+                                    255,                     # R: mantém vermelho máximo
+                                    int(128 * ratio),        # G: 0->128 (adiciona laranja)
+                                    0                        # B: mantém 0
                                 ]
-                            elif val <= 0.4:  # Verde-amarelo -> Verde-azul
-                                ratio = (val - 0.2) / 0.2
+                            elif val <= 0.5:  # Vermelho-laranja -> Amarelo (ATENÇÃO)
+                                ratio = (val - 0.25) / 0.25
                                 colored[i, j] = [
-                                    int(150 - 150 * ratio),  # R: 150->0
-                                    int(255 - 55 * ratio),   # G: 255->200
-                                    int(100 + 100 * ratio)   # B: 100->200
+                                    255,                     # R: mantém 255
+                                    int(128 + 127 * ratio),  # G: 128->255 (completa amarelo)
+                                    0                        # B: mantém 0
                                 ]
-                            elif val <= 0.6:  # Verde-azul -> Azul médio (PONTO MÉDIO)
-                                ratio = (val - 0.4) / 0.2
+                            elif val <= 0.75:  # Amarelo -> Verde (CUIDADO -> SEGURO)
+                                ratio = (val - 0.5) / 0.25
+                                colored[i, j] = [
+                                    int(255 - 255 * ratio),  # R: 255->0 (remove vermelho)
+                                    255,                     # G: mantém verde máximo
+                                    0                        # B: mantém 0
+                                ]
+                            else:  # Verde -> Preto (LONGE -> IRRELEVANTE)
+                                ratio = (val - 0.75) / 0.25
                                 colored[i, j] = [
                                     0,                       # R: mantém 0
-                                    int(200 - 100 * ratio),  # G: 200->100
-                                    int(200 + 55 * ratio)    # B: 200->255
-                                ]
-                            elif val <= 0.8:  # Azul médio -> Azul escuro
-                                ratio = (val - 0.6) / 0.2
-                                colored[i, j] = [
-                                    0,                       # R: mantém 0
-                                    int(100 - 100 * ratio),  # G: 100->0
-                                    int(255 - 135 * ratio)   # B: 255->120
-                                ]
-                            else:  # Azul escuro -> Preto (DISTANTE)
-                                ratio = (val - 0.8) / 0.2
-                                colored[i, j] = [
-                                    0,                       # R: mantém 0
-                                    0,                       # G: mantém 0
-                                    int(120 - 120 * ratio)   # B: 120->0
+                                    int(255 - 255 * ratio),  # G: 255->0 (escurece)
+                                    0                        # B: mantém 0
                                 ]
                     
                     return colored
                 
-                # Usar mapeamento personalizado ou fallback para COLORMAP_JET
+                # Usar mapeamento personalizado ou fallback intuitivo
                 try:
                     depth_color = enhanced_depth_colormap(depth_map)
                 except Exception as e:
-                    print(f"⚠️ Erro no mapeamento personalizado: {e}, usando fallback")
-                    depth_color = cv2.applyColorMap((depth_map * 255).astype(np.uint8), cv2.COLORMAP_JET)
-                
-            except Exception as e:
-                print(f"⚠️ Erro no processamento de profundidade: {e}")
-                # Fallback para análise simples
-                gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
-                blurred = cv2.GaussianBlur(gray, (5, 5), 0)
-                depth_map = (255 - blurred).astype(np.float32) / 255.0
-                depth_normalized = depth_map
-                depth_color = cv2.applyColorMap((depth_map * 255).astype(np.uint8), cv2.COLORMAP_JET)
-        else:
-            # Análise simples baseada em luminosidade
+                    print(f"⚠️ Erro no mapeamento personalizado: {e}, usando fallback intuitivo")
+                    # Fallback com esquema vermelho->verde
+                    depth_normalized = (depth_map - np.min(depth_map)) / (np.max(depth_map) - np.min(depth_map) + 1e-8)
+                    depth_inverted = 1.0 - depth_normalized  # Inverter: 0=longe, 1=perto
+                    depth_color = cv2.applyColorMap((depth_inverted * 255).astype(np.uint8), cv2.COLORMAP_HOT)
+                    
+        except Exception as e:
+            print(f"⚠️ Erro no processamento de profundidade: {e}")
+            # Fallback para análise simples
             gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
             blurred = cv2.GaussianBlur(gray, (5, 5), 0)
             depth_map = (255 - blurred).astype(np.float32) / 255.0
             depth_normalized = depth_map
-            depth_color = cv2.applyColorMap((depth_map * 255).astype(np.uint8), cv2.COLORMAP_JET)
+            # Usar esquema intuitivo também no fallback
+            depth_inverted = 1.0 - depth_normalized  # Inverter para vermelho=próximo
+            depth_color = cv2.applyColorMap((depth_inverted * 255).astype(np.uint8), cv2.COLORMAP_HOT)
+        
+        # Garantir que depth_color esteja sempre definido
+        if depth_color is None:
+            depth_inverted = 1.0 - depth_map  # Inverter para vermelho=próximo
+            depth_color = cv2.applyColorMap((depth_inverted * 255).astype(np.uint8), cv2.COLORMAP_HOT)
         
         # Processar algoritmos de navegação com análise sofisticada (igual ao main_analyzer)
-        h, w = depth_normalized.shape
+        depth_normalized = depth_map
         
         # Usar ZoneMappers completos se disponíveis
         if hasattr(self, 'strategic_mapper') and self.strategic_mapper and hasattr(self, 'reactive_mapper') and self.reactive_mapper:
@@ -515,7 +528,6 @@ class TOFcamWebViewer:
         else:
             # Fallback para análise simples 3x3
             strategic_direction, reactive_direction = self._simple_analysis_fallback(depth_normalized)
-        # Criar visualização combinada com análises
         # Redimensionar imagens para 320x240 para melhor performance
         small_frame = cv2.resize(frame, (320, 240))
         small_depth = cv2.resize(depth_color, (320, 240))
@@ -1010,8 +1022,8 @@ class TOFcamRequestHandler(BaseHTTPRequestHandler):
                         </div>
                         <div class="weight-group">
                             <label for="gradientWeight">Gradiente:</label>
-                            <input type="range" id="gradientWeight" min="0" max="100" value="29" oninput="updateWeights()">
-                            <span id="gradientValue">29%</span>
+                            <input type="range" id="gradientWeight" min="0" max="100" value="58" oninput="updateWeights()">
+                            <span id="gradientValue">58%</span>
                         </div>
                     </div>
                 </div>
@@ -1394,7 +1406,7 @@ def main():
         tofcam_viewer.start_capture()
         
         # Iniciar servidor web
-        port = 8081
+        port = 8082
         server = ThreadedHTTPServer(('localhost', port), TOFcamRequestHandler)
         
         print(f"🚀 Servidor iniciado em: http://localhost:{port}")
